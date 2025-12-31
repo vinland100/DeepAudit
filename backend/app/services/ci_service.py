@@ -205,7 +205,19 @@ class CIService:
             await self._post_gitea_comment(repo, issue.get("number"), msg)
             return
 
-        context_results = await retriever.retrieve(query, top_k=5)
+        try:
+            context_results = await retriever.retrieve(query, top_k=5)
+        except Exception as e:
+            # Check for Chroma dimension mismatch
+            if "dimension" in str(e).lower():
+                logger.warning(f"Dimension mismatch detected for project {project.id}. Rebuilding index...")
+                await self._ensure_indexed(project, repo, branch, force_rebuild=True)
+                # Retry once
+                context_results = await retriever.retrieve(query, top_k=5)
+            else:
+                logger.error(f"Retrieval error: {e}")
+                context_results = []
+
         repo_context = "\n".join([r.to_context_string() for r in context_results])
         
         # 4. Build Prompt
@@ -281,7 +293,7 @@ class CIService:
             
         return project
 
-    async def _ensure_indexed(self, project: Project, repo: Dict, branch: str) -> Optional[str]:
+    async def _ensure_indexed(self, project: Project, repo: Dict, branch: str, force_rebuild: bool = False) -> Optional[str]:
         """
         Syncs the repository and ensures it is indexed.
         Returns the local path if successful.
@@ -295,15 +307,18 @@ class CIService:
             return None
         
         try:
-            # 2. Incremental Indexing
+            # 2. Incremental or Full Indexing
             indexer = CodeIndexer(
                 collection_name=f"ci_{project.id}", 
                 persist_directory=str(CI_VECTOR_DB_DIR / project.id)
             )
+            
+            update_mode = IndexUpdateMode.FULL if force_rebuild else IndexUpdateMode.INCREMENTAL
+            
             # Iterate over the generator to execute indexing
             async for progress in indexer.smart_index_directory(
                 directory=repo_path, 
-                update_mode=IndexUpdateMode.INCREMENTAL
+                update_mode=update_mode
             ):
                 # Log progress occasionally
                 if progress.total_files > 0 and progress.processed_files % 20 == 0:

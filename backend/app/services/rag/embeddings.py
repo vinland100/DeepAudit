@@ -60,8 +60,18 @@ class OpenAIEmbedding(EmbeddingProvider):
         base_url: Optional[str] = None,
         model: str = "text-embedding-3-small",
     ):
-        self.api_key = api_key or settings.LLM_API_KEY
-        self.base_url = base_url or "https://api.openai.com/v1"
+        # 优先使用显性参数，其次使用 EMBEDDING_API_KEY，最后使用 LLM_API_KEY
+        self.api_key = (
+            api_key 
+            or getattr(settings, "EMBEDDING_API_KEY", None) 
+            or settings.LLM_API_KEY
+        )
+        # 优先使用显性参数，其次使用 EMBEDDING_BASE_URL，最后使用 OpenAI 默认地址
+        self.base_url = (
+            base_url 
+            or getattr(settings, "EMBEDDING_BASE_URL", None) 
+            or "https://api.openai.com/v1"
+        )
         self.model = model
         self._dimension = self.MODELS.get(model, 1536)
     
@@ -593,15 +603,15 @@ class EmbeddingService:
         # 确定提供商（保存原始值用于属性访问）
         self.provider = provider or getattr(settings, 'EMBEDDING_PROVIDER', 'openai')
         self.model = model or getattr(settings, 'EMBEDDING_MODEL', 'text-embedding-3-small')
-        self.api_key = api_key
-        self.base_url = base_url
+        self.api_key = api_key or getattr(settings, "EMBEDDING_API_KEY", None)
+        self.base_url = base_url or getattr(settings, "EMBEDDING_BASE_URL", None)
 
         # 创建提供商实例
         self._provider = self._create_provider(
             provider=self.provider,
             model=self.model,
-            api_key=api_key,
-            base_url=base_url,
+            api_key=self.api_key,
+            base_url=self.base_url,
         )
 
         logger.info(f"Embedding service initialized with {self.provider}/{self.model}")

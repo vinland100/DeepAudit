@@ -13,6 +13,8 @@ from .embeddings import EmbeddingService
 from .indexer import VectorStore, ChromaVectorStore, InMemoryVectorStore
 from .splitter import CodeChunk, ChunkType
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -196,7 +198,19 @@ class CodeRetriever:
                     if embeddings is not None and len(embeddings) > 0:
                         dim = len(embeddings[0])
 
-                        # 🔥 根据维度推断模型（优先选择常用模型）
+                        # 🔥 1. Check if the current provider supports this dimension
+                        current_provider_name = getattr(self.embedding_service, 'provider', settings.EMBEDDING_PROVIDER)
+                        current_model_name = getattr(self.embedding_service, 'model', settings.EMBEDDING_MODEL)
+                        
+                        # Use a temporary service to check dimension if needed, or just trust current settings if dimension matches
+                        if hasattr(self.embedding_service, 'dimension') and self.embedding_service.dimension == dim:
+                             return {
+                                 "provider": current_provider_name,
+                                 "model": current_model_name,
+                                 "dimension": dim
+                             }
+
+                        # 🔥 2. Fallback to hardcoded mapping
                         dimension_mapping = {
                             # OpenAI 系列
                             1536: {"provider": "openai", "model": "text-embedding-3-small", "dimension": 1536},
@@ -211,9 +225,6 @@ class CodeRetriever:
 
                             # Jina 系列
                             512: {"provider": "jina", "model": "jina-embeddings-v2-small-en", "dimension": 512},
-
-                            # Cohere 系列
-                            # 1024 已被 HuggingFace 占用，Cohere 维度相同时会默认使用 HuggingFace
                         }
 
                         inferred = dimension_mapping.get(dim)
