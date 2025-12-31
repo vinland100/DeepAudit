@@ -24,6 +24,7 @@ import {
     MessageSquare,
     Bot,
     ExternalLink,
+    GitGraph,
 } from "lucide-react";
 import routes from "@/app/routes";
 import { version } from "../../../package.json";
@@ -39,6 +40,7 @@ const routeIcons: Record<string, React.ReactNode> = {
     "/prompts": <MessageSquare className="w-5 h-5" />,
     "/admin": <Settings className="w-5 h-5" />,
     "/recycle-bin": <Trash2 className="w-5 h-5" />,
+    "/ci-integration": <GitGraph className="w-5 h-5" />,
 };
 
 interface SidebarProps {

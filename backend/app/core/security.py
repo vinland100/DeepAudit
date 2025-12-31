@@ -1,6 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union
 from jose import jwt
+import bcrypt  # Import first
+
+# MonkeyPatch passlib/bcrypt compatibility (passlib expects __about__)
+if not hasattr(bcrypt, "__about__"):
+    from types import SimpleNamespace
+    bcrypt.__about__ = SimpleNamespace(__version__=bcrypt.__version__)
+
 from passlib.context import CryptContext
 from app.core.config import settings
 

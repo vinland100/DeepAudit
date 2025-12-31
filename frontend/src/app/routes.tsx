@@ -10,6 +10,8 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import Account from "@/pages/Account";
 import AuditRules from "@/pages/AuditRules";
 import PromptManager from "@/pages/PromptManager";
+import CIProjects from "@/pages/ci/CIProjects";
+import CIDetails from "@/pages/ci/CIDetails";
 import type { ReactNode } from 'react';
 
 export interface RouteConfig {
@@ -43,6 +45,18 @@ const routes: RouteConfig[] = [
     path: "/projects",
     element: <Projects />,
     visible: true,
+  },
+  {
+    name: "CI集成",
+    path: "/ci-integration",
+    element: <CIProjects />,
+    visible: true,
+  },
+  {
+    name: "CI项目详情",
+    path: "/ci-integration/:id",
+    element: <CIDetails />,
+    visible: false,
   },
   {
     name: "项目详情",

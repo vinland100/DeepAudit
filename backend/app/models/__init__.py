@@ -10,6 +10,7 @@ from .agent_task import (
     AgentTaskStatus, AgentTaskPhase, AgentEventType,
     VulnerabilitySeverity, VulnerabilityType, FindingStatus
 )
+from .ci import PRReview
 
 
 

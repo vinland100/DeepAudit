@@ -24,6 +24,10 @@ class Project(Base):
     owner_id = Column(String, ForeignKey("users.id"), nullable=False)
     is_active = Column(Boolean(), default=True)
     
+    # CI/CD Integration Fields
+    is_ci_managed = Column(Boolean(), default=False, nullable=False)
+    latest_pr_activity = Column(DateTime(timezone=True), nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

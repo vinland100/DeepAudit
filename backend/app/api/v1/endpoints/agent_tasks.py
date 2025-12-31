@@ -3051,7 +3051,7 @@ async def get_checkpoint_detail(
 @router.get("/{task_id}/report")
 async def generate_audit_report(
     task_id: str,
-    format: str = Query("markdown", regex="^(markdown|json)$"),
+    format: str = Query("markdown", pattern="^(markdown|json)$"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
 ):

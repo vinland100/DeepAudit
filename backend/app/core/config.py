@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     
     # Gitea配置
     GITEA_TOKEN: Optional[str] = None
+    GITEA_HOST_URL: Optional[str] = "http://localhost:3000"
+    GITEA_BOT_TOKEN: Optional[str] = None
+    GITEA_WEBHOOK_SECRET: Optional[str] = None
     
     # 扫描配置
     MAX_ANALYZE_FILES: int = 0  # 最大分析文件数，0表示无限制
