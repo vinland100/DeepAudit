@@ -198,26 +198,19 @@ class CodeRetriever:
                     if embeddings is not None and len(embeddings) > 0:
                         dim = len(embeddings[0])
 
-                        # 🔥 1. Check if the current provider supports this dimension
-                        current_provider_name = getattr(self.embedding_service, 'provider', settings.EMBEDDING_PROVIDER)
-                        current_model_name = getattr(self.embedding_service, 'model', settings.EMBEDDING_MODEL)
-                        
-                        # Use a temporary service to check dimension if needed, or just trust current settings if dimension matches
-                        if hasattr(self.embedding_service, 'dimension') and self.embedding_service.dimension == dim:
-                             return {
-                                 "provider": current_provider_name,
-                                 "model": current_model_name,
-                                 "dimension": dim
-                             }
-
                         # 🔥 2. Fallback to hardcoded mapping
                         dimension_mapping = {
                             # OpenAI 系列
                             1536: {"provider": "openai", "model": "text-embedding-3-small", "dimension": 1536},
                             3072: {"provider": "openai", "model": "text-embedding-3-large", "dimension": 3072},
 
+                            # Qwen (DashScope) 系列
+                            # 1536: {"provider": "qwen", "model": "text-embedding-v2", "dimension": 1536},
+                            1024: {"provider": "qwen", "model": "text-embedding-v4", "dimension": 1024},
+
                             # HuggingFace 系列
-                            1024: {"provider": "huggingface", "model": "BAAI/bge-m3", "dimension": 1024},
+                            # 1024 已被 Qwen 占用，优先选用 Qwen 如果配置了
+                            # 1024: {"provider": "huggingface", "model": "BAAI/bge-m3", "dimension": 1024},
                             384: {"provider": "huggingface", "model": "sentence-transformers/all-MiniLM-L6-v2", "dimension": 384},
 
                             # Ollama 系列
@@ -226,6 +219,10 @@ class CodeRetriever:
                             # Jina 系列
                             512: {"provider": "jina", "model": "jina-embeddings-v2-small-en", "dimension": 512},
                         }
+                        
+                        # Special case: If EMBEDDING_PROVIDER is 'qwen', use qwen for 1536 too
+                        if settings.EMBEDDING_PROVIDER == "qwen" and dim == 1536:
+                             return {"provider": "qwen", "model": "text-embedding-v2", "dimension": 1536}
 
                         inferred = dimension_mapping.get(dim)
                         if inferred:

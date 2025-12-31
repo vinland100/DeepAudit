@@ -208,14 +208,23 @@ class CIService:
         try:
             context_results = await retriever.retrieve(query, top_k=5)
         except Exception as e:
-            # Check for Chroma dimension mismatch
-            if "dimension" in str(e).lower():
-                logger.warning(f"Dimension mismatch detected for project {project.id}. Rebuilding index...")
+            err_msg = str(e).lower()
+            # Dimension mismatch, 404 (model not found), or 401 (auth issue usually model related)
+            # indicator of need for re-index with current settings
+            should_rebuild = any(x in err_msg for x in ["dimension", "404", "401", "400", "invalid_model"])
+            
+            if should_rebuild:
+                logger.warning(f"Embedding/RAG error for project {project.id}: {e}. Triggering full rebuild...")
+                # Rebuild using current correct configuration
                 await self._ensure_indexed(project, repo, branch, force_rebuild=True)
-                # Retry once
-                context_results = await retriever.retrieve(query, top_k=5)
+                # Retry retrieval
+                try:
+                    context_results = await retriever.retrieve(query, top_k=5)
+                except Exception as retry_e:
+                    logger.error(f"Retry retrieval failed: {retry_e}")
+                    context_results = []
             else:
-                logger.error(f"Retrieval error: {e}")
+                logger.error(f"Retrieval error (no rebuild): {e}")
                 context_results = []
 
         repo_context = "\n".join([r.to_context_string() for r in context_results])
