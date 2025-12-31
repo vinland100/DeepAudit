@@ -72,28 +72,12 @@ class CIService:
             logger.error(f"Error creating project: {e}")
             return
 
-        # 2. Clone/Update Repo & Indexing (RAG)
-        try:
-            repo_path = await self._prepare_repository(project, repo_url, branch, settings.GITEA_BOT_TOKEN)
-        except Exception as e:
-            logger.error(f"Git operation failed: {e}")
-            # If clone fails, we can't proceed with RAG, but we shouldn't crash
+        # 2. Sync Repository and Index
+        repo_path = await self._ensure_indexed(project, repo, branch)
+        if not repo_path:
             return
         
         try:
-            # 3. Incremental Indexing
-            indexer = CodeIndexer(
-                collection_name=f"ci_{project.id}", 
-                persist_directory=str(CI_VECTOR_DB_DIR / project.id)
-            )
-            # Iterate over the generator to execute indexing
-            async for progress in indexer.smart_index_directory(
-                directory=repo_path, 
-                update_mode=IndexUpdateMode.INCREMENTAL
-            ):
-                if progress.processed_files % 10 == 0:
-                    logger.info(f"Indexing progress: {progress.processed_files}/{progress.total_files}")
-    
             # 4. Analyze Diff & Retrieve Context
             diff_text = await self._get_pr_diff(repo, pr_number)
             if not diff_text:
@@ -179,20 +163,16 @@ class CIService:
         # We need a dummy PR object if we are creating project from chat, or we just fetch by repo
         # Since _get_or_create_project needs PR info to determine branch/owner, we might need a distinct method
         # or simplified flow.
-        project = await self._get_project_by_repo(repo.get("clone_url"))
+        # 1. Get Project (or Create if discovered via Chat first)
+        repo_url = repo.get("clone_url")
+        project = await self._get_project_by_repo(repo_url)
         
         if not project:
-            # If project doesn't exist, we try to create it using available repo info
-            # We construct a minimal "pseudo-PR" dict if needed, or better:
-            # We assume if we are chatting on a PR, we can get PR details via API later
-            # For now, let's just Try to Find Project. If not found, we CANNOT proceed easily without syncing.
-            # But user wants "Auto Discovery".
-            # Let's try to create it.
             try:
-                # Mock a PR object for creation purposes (minimal fields)
+                # Mock a PR object for creation
                 mock_pr = {
                     "number": issue.get("number"),
-                    "head": {"ref": repo.get("default_branch", "main"), "sha": "HEAD"}, # Fallback
+                    "head": {"ref": repo.get("default_branch", "main"), "sha": "HEAD"},
                     "base": {"ref": repo.get("default_branch", "main")}
                 }
                 project = await self._get_or_create_project(repo, mock_pr)
@@ -204,22 +184,36 @@ class CIService:
             logger.warning("Project could not be determined for chat event")
             return
 
-        # 2. Retrieve Context (RAG)
+        # 2. Ensure Indexed (Important for first-time chat or if project auto-created)
+        branch = repo.get("default_branch", "main")
+        repo_path = await self._ensure_indexed(project, repo, branch)
+        if not repo_path:
+            logger.error("Failed to sync/index repository for chat")
+            return
+
+        # 3. Retrieve Context (RAG)
         retriever = CodeRetriever(
             collection_name=f"ci_{project.id}",
             persist_directory=str(CI_VECTOR_DB_DIR / project.id)
         )
         # Use the user comment as query
         query = body.replace("@ai-bot", "").strip()
+        
+        # Handle empty query
+        if not query:
+            msg = "你好！我是 DeepAudit AI 助手。你可以问我关于此 PR 或项目代码的任何安全及逻辑问题。例如：\n- '这段代码有 SQL 注入风险吗？'\n- '这个 PR 修改了哪些核心组件？'\n\n请提供具体问题以便我通过代码上下文为你解答。"
+            await self._post_gitea_comment(repo, issue.get("number"), msg)
+            return
+
         context_results = await retriever.retrieve(query, top_k=5)
         repo_context = "\n".join([r.to_context_string() for r in context_results])
         
-        # 3. Build Prompt
+        # 4. Build Prompt
         # Fetch conversation history (simplified: just current comment)
         history = f"User: {query}"
         prompt = build_chat_prompt(query, repo_context, history)
         
-        # 4. Generate Answer
+        # 5. Generate Answer
         response = await self.llm_service.chat_completion_raw(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4
@@ -227,9 +221,10 @@ class CIService:
         
         answer = response["content"]
         
-        # 5. Reply
+        # 6. Reply
         # Append context info footer
-        footer = "\n\n---\n*Context used: " + ", ".join([f"`{r.file_path}`" for r in context_results]) + "*"
+        footer_parts = [f"`{r.file_path}`" for r in context_results]
+        footer = "\n\n---\n*Context used: " + (", ".join(footer_parts) if footer_parts else "None (General knowledge used)") + "*"
         await self._post_gitea_comment(repo, issue.get("number"), answer + footer)
         
         # 6. Record (Optional, maybe just log)
@@ -286,6 +281,40 @@ class CIService:
             
         return project
 
+    async def _ensure_indexed(self, project: Project, repo: Dict, branch: str) -> Optional[str]:
+        """
+        Syncs the repository and ensures it is indexed.
+        Returns the local path if successful.
+        """
+        repo_url = repo.get("clone_url")
+        # 1. Prepare Repository (Clone/Pull)
+        repo_path = await self._prepare_repository(project, repo_url, branch, settings.GITEA_BOT_TOKEN)
+        
+        if not repo_path:
+            logger.error(f"Failed to prepare repository for project {project.id}")
+            return None
+        
+        try:
+            # 2. Incremental Indexing
+            indexer = CodeIndexer(
+                collection_name=f"ci_{project.id}", 
+                persist_directory=str(CI_VECTOR_DB_DIR / project.id)
+            )
+            # Iterate over the generator to execute indexing
+            async for progress in indexer.smart_index_directory(
+                directory=repo_path, 
+                update_mode=IndexUpdateMode.INCREMENTAL
+            ):
+                # Log progress occasionally
+                if progress.total_files > 0 and progress.processed_files % 20 == 0:
+                    logger.info(f"[{project.name}] Indexing: {progress.processed_files}/{progress.total_files}")
+            
+            logger.info(f"✅ Project {project.name} indexing complete.")
+            return repo_path
+        except Exception as e:
+            logger.error(f"Indexing error for project {project.id}: {e}")
+            return repo_path # Return path anyway, maybe some files are present
+
     async def _get_project_by_repo(self, repo_url: str) -> Optional[Project]:
         stmt = select(Project).where(Project.repository_url == repo_url)
         result = await self.db.execute(stmt)
@@ -297,7 +326,24 @@ class CIService:
         """
         target_dir = CI_WORKSPACE_DIR / project.id
         
-        # Inject Token into URL for auth
+        # 1. Rewrite URL to use configured Host if necessary
+        # Gitea might send 'localhost:3000' in payload, but we need settings.GITEA_HOST_URL
+        if settings.GITEA_HOST_URL and "://" in repo_url:
+            from urllib.parse import urlparse, urlunparse
+            payload_url = urlparse(repo_url)
+            config_url = urlparse(settings.GITEA_HOST_URL)
+            # Use host (and port) from config, keep path from payload
+            repo_url = urlunparse((
+                config_url.scheme or payload_url.scheme,
+                config_url.netloc,
+                payload_url.path,
+                payload_url.params,
+                payload_url.query,
+                payload_url.fragment
+            ))
+            logger.info(f"🔗 Rewrote Clone URL: {repo_url}")
+
+        # 2. Inject Token into URL for auth
         # Format: http://token@host/repo.git
         if "://" in repo_url:
             protocol, rest = repo_url.split("://", 1)
