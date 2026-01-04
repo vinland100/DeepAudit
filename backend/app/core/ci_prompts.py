@@ -86,13 +86,13 @@ PR_REVIEW_OUTPUT_FORMAT = """
 
 PR_SYNC_TASK = """
 用户向现有的 Pull Request 推送了新的提交。
-请参考下方的“PR 差异 / 变更内容 (Diff)”中的 **全量差异 (Total Diff)** 以了解整个 PR 的背景，
-但请**重点分析并评审**其中的 **本次提交差异 (Recent Sync Diff)**。
+请分析下方的“PR 差异 / 变更内容 (Diff)”中的 **本次提交差异 (Recent Sync Diff)**。
 
-1. **安全分析**：识别本次新提交是否引入了任何安全风险。
-2. **逻辑与 Bug**：寻找本次新提交中的边界情况或逻辑错误。
-3. **回归检查**：核实本次新提交是否解决了之前提到的疑虑，或者是否破坏了已有逻辑。
-4. **上下文检查**：利用仓库上下文核实新代码是否有效。
+1. **新功能与变更总结**：在摘要中明确总结本次新提交引入的所有新功能、UI 变更或逻辑调整（即使没有安全问题）。
+2. **安全分析**：识别本次新提交是否引入了任何安全风险。
+3. **逻辑与 Bug**：寻找本次新提交中的边界情况或逻辑错误。
+4. **回归检查**：核实本次新提交是否解决了之前提到的疑虑，或者是否破坏了已有逻辑。
+5. **上下文检查**：利用仓库上下文核实新代码是否有效。
 
 请确保评审意见清晰指出哪些是针对本次新提交的反馈。
 如果本次同步未引入新问题且解决了旧有问题，请在“评审意见”中说明。若无任何新问题，该部分可以简单说明“未发现新增问题”。
@@ -153,12 +153,12 @@ def build_pr_review_prompt(diff: str, context: str, history: str = "无") -> str
         output_format=PR_REVIEW_OUTPUT_FORMAT
     )
 
-def build_pr_sync_prompt(total_diff: str, sync_diff: str, context: str, history: str) -> str:
-    combined_diff = f"--- [PR 全量差异 (Total Diff)] ---\n{total_diff}\n\n--- [本次提交差异 (Recent Sync Diff)] ---\n{sync_diff}"
+def build_pr_sync_prompt(sync_diff: str, context: str, history: str) -> str:
+    diff_content = f"--- [本次提交差异 (Recent Sync Diff)] ---\n{sync_diff}"
     return PROMPT_TEMPLATE.format(
         system_prompt=REVIEW_SYSTEM_PROMPT,
         repo_context=context if context else "未检索到相关的仓库上下文。",
-        diff_content=combined_diff,
+        diff_content=diff_content,
         conversation_history=history,
         task_description=PR_SYNC_TASK,
         output_format=PR_SYNC_OUTPUT_FORMAT

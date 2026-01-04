@@ -85,51 +85,51 @@ class CIService:
                 logger.warning("Empty diff or failed to fetch diff. Skipping review.")
                 return
 
+            # Determine sync diff if needed
+            sync_diff = ""
+            history = ""
+            if action == "synchronized":
+                 # 增量同步模式：获取全部对话历史
+                 history = await self._get_conversation_history(repo, pr_number)
+                 
+                 # 获取本次同步的具体差异 (commit diff)
+                 before_sha = payload.get("before")
+                 after_sha = payload.get("after") or commit_sha
+                 
+                 if not before_sha:
+                     logger.info(f"🔍 Webhook payload missing 'before' SHA, searching database for previous sync head...")
+                     before_sha = await self._get_previous_review_sha(project.id, pr_number)
+                 
+                 if not before_sha or not await self._is_sha_valid(repo_path, str(before_sha)):
+                     logger.warning(f"⚠️ Baseline SHA {before_sha} is missing or invalid. Falling back to {after_sha}^")
+                     before_sha = f"{after_sha}^"
+                 
+                 if before_sha and after_sha and before_sha != after_sha:
+                     logger.info(f"📂 Fetching sync diff: {before_sha} -> {after_sha}")
+                     sync_diff = await self._get_commit_diff(repo_path, str(before_sha), str(after_sha))
+                 
+                 if not sync_diff or (hasattr(sync_diff, "strip") and sync_diff.strip() == ""):
+                      if str(before_sha) == str(after_sha):
+                           sync_diff = "(推送的 HEAD 与上次评审点相同，无新增差异)"
+                      else:
+                           sync_diff = "(本次同步虽有 SHA 变动，但代码内容与上次评审点完全一致。)"
+
             # Retrieve context relevant to the diff
             retriever = CodeRetriever(
                 collection_name=f"ci_{project.id}",
                 persist_directory=str(CI_VECTOR_DB_DIR / project.id)
             )
             
-            context_results = await retriever.retrieve(diff_text[:1000], top_k=5)
+            # 优先使用 sync_diff 作为检索关键词，若为空（如初次 PR）则使用全量 diff
+            # 增加检索字符长度到 2000 以获得更多上下文
+            rag_query = sync_diff if sync_diff and "---" in sync_diff else diff_text
+            context_results = await retriever.retrieve(rag_query[:2000], top_k=5)
             repo_context = "\n".join([r.to_context_string() for r in context_results])
             
             # 5. 生成评审
             if action == "synchronized":
-                 # 增量同步模式：获取全部对话历史
-                 history = await self._get_conversation_history(repo, pr_number)
-                 
-                 # 获取本次同步的具体差异 (commit diff)
-                 # 优先级 1: Webhook payload 提供的 before 记录
-                 before_sha = payload.get("before")
-                 after_sha = payload.get("after") or commit_sha
-                 
-                 # 优先级 2: 如果 payload 缺失，尝试从数据库获取上一次评审点
-                 if not before_sha:
-                     logger.info(f"🔍 Webhook payload missing 'before' SHA, searching database for previous sync head...")
-                     before_sha = await self._get_previous_review_sha(project.id, pr_number)
-                 
-                 # 校验 & 优先级 3: 如果还是没有或 SHA 无效（强推后），回退到当前提交的父节点
-                 if not before_sha or not await self._is_sha_valid(repo_path, str(before_sha)):
-                     logger.warning(f"⚠️ Baseline SHA {before_sha} is missing or invalid (likely history rewrite). Falling back to {after_sha}^")
-                     before_sha = f"{after_sha}^"
-                 
-                 sync_diff = ""
-                 if before_sha and after_sha and before_sha != after_sha:
-                     logger.info(f"📂 Fetching sync diff: {before_sha} -> {after_sha}")
-                     sync_diff = await self._get_commit_diff(repo_path, str(before_sha), str(after_sha))
-                 
-                 if not sync_diff or (hasattr(sync_diff, "strip") and sync_diff.strip() == ""):
-                     # 最终兜底说明
-                     if str(before_sha) == str(after_sha):
-                          sync_diff = "(推送的 HEAD 与上次评审点相同，无新增差异)"
-                     else:
-                          sync_diff = "(本次同步虽有 SHA 变动，但代码内容与上次评审点完全一致。可能是进行了软重置后重新提交、修改了提交信息或进行不带内容的强推。)"
-                     
-                 prompt = build_pr_sync_prompt(diff_text, sync_diff, repo_context, history)
+                 prompt = build_pr_sync_prompt(sync_diff, repo_context, history)
             else:
-                 # 新建 PR 模式：历史为空
-                 history = "" 
                  prompt = build_pr_review_prompt(diff_text, repo_context, history)
                  
             # Call LLM
