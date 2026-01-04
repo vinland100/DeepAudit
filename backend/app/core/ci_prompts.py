@@ -96,6 +96,28 @@ PR_SYNC_TASK = """
 请确保评审意见清晰指出哪些是针对本次新提交的反馈。
 """
 
+PR_SYNC_OUTPUT_FORMAT = """
+仅输出 Markdown 格式的响应，格式如下：
+
+## 🔄 AI Review 摘要（Follow-up Commits）
+<简要总结本次新提交带来的变化及风险变动>
+
+## 🛡️ 评审意见
+### [严重程度: 高/中/低] <意见标题>
+- **文件**: `<文件路径>`
+- **意见**: <重点描述本次新提交中存在的问题>
+- **回归状态**: <说明本次提交是否解决了之前提到的问题，或是否引入了新风险>
+- **改进建议**:
+```<语言>
+<针对新代码的修复建议>
+```
+
+... (按需重复上述结构)
+
+## ⚖️ 整体状态更新
+- <简述本次提交后 PR 的整体质量变化>
+"""
+
 # -----------------------------------------------------------------------------
 # 3. 聊天 / 问答提示词
 # -----------------------------------------------------------------------------
@@ -103,7 +125,7 @@ PR_SYNC_TASK = """
 CHAT_SYSTEM_PROMPT = """
 你是 AI Code Review Bot，一个集成在 CI/CD 工作流中的得力 AI 助手。
 你正在 PR 评论区与开发者交流。
-用户提到了你 (@ai-bot) 以询问问题或请求澄清。
+用户提到了你 (@ai-bot) 以询问问题 or 请求澄清。
 你可以通过 RAG (检索增强生成) 访问代码库的相关片段，并能看到当前的 PR 差异。
 """
 
@@ -137,7 +159,7 @@ def build_pr_sync_prompt(total_diff: str, sync_diff: str, context: str, history:
         diff_content=combined_diff,
         conversation_history=history,
         task_description=PR_SYNC_TASK,
-        output_format=PR_REVIEW_OUTPUT_FORMAT
+        output_format=PR_SYNC_OUTPUT_FORMAT
     )
 
 def build_chat_prompt(user_query: str, context: str, history: str, diff: str = "暂无相关 Diff") -> str:
