@@ -23,6 +23,7 @@ from app.models.project import Project
 from app.models.ci import PRReview
 from app.core.ci_prompts import (
     build_pr_review_prompt, 
+    build_pr_sync_prompt,
     build_chat_prompt, 
     PR_SYNC_TASK
 )
@@ -93,13 +94,26 @@ class CIService:
             context_results = await retriever.retrieve(diff_text[:1000], top_k=5)
             repo_context = "\n".join([r.to_context_string() for r in context_results])
             
-            # 5. Generate Review
-            history = "" 
-            
+            # 5. 生成评审
             if action == "synchronize":
-                 prompt = build_pr_review_prompt(diff_text, repo_context, history)
-                 prompt += f"\n\nNOTE: {PR_SYNC_TASK}"
+                 # 增量同步模式：获取全部对话历史
+                 history = await self._get_conversation_history(repo, pr_number)
+                 
+                 # 获取本次同步的具体差异 (commit diff)
+                 before_sha = payload.get("before")
+                 after_sha = payload.get("after")
+                 
+                 sync_diff = ""
+                 if before_sha and after_sha:
+                     sync_diff = await self._get_commit_diff(repo, before_sha, after_sha)
+                 
+                 if not sync_diff:
+                     sync_diff = "（无法获取本次提交的具体差异，请参考全量差异）"
+                     
+                 prompt = build_pr_sync_prompt(diff_text, sync_diff, repo_context, history)
             else:
+                 # 新建 PR 模式：历史为空
+                 history = "" 
                  prompt = build_pr_review_prompt(diff_text, repo_context, history)
                  
             # Call LLM
@@ -229,12 +243,15 @@ class CIService:
 
         repo_context = "\n".join([r.to_context_string() for r in context_results])
         
-        # 4. Build Prompt
-        # Fetch conversation history (simplified: just current comment)
-        history = f"User: {query}"
-        prompt = build_chat_prompt(query, repo_context, history)
+        # 4. 获取 PR 差异作为上下文
+        diff_text = await self._get_pr_diff(repo, issue.get("number"))
+
+        # 5. 构建提示词
+        # 获取全部 PR 对话历史作为上下文
+        history = await self._get_conversation_history(repo, issue.get("number"))
+        prompt = build_chat_prompt(query, repo_context, history, diff=diff_text)
         
-        # 5. Generate Answer
+        # 6. 生成回答
         response = await self.llm_service.chat_completion_raw(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4
@@ -242,10 +259,10 @@ class CIService:
         
         answer = response["content"]
         
-        # 6. Reply
-        # Append context info footer
+        # 7. 回复
+        # 附加上下文信息页脚
         footer_parts = [f"`{r.file_path}`" for r in context_results]
-        footer = "\n\n---\n*Context used: " + (", ".join(footer_parts) if footer_parts else "None (General knowledge used)") + "*"
+        footer = "\n\n---\n*本次回答参考了以下文件上下文: " + (", ".join(footer_parts) if footer_parts else "无（使用了模型通用知识）") + "*"
         await self._post_gitea_comment(repo, issue.get("number"), answer + footer)
         
         # 6. Record (Optional, maybe just log)
@@ -444,6 +461,25 @@ class CIService:
             logger.error(f"Failed to fetch PR diff: {e}")
             return ""
 
+    async def _get_commit_diff(self, repo: Dict, before: str, after: str) -> str:
+        """
+        Fetch the diff between two commits from Gitea API
+        """
+        api_url = f"{settings.GITEA_HOST_URL}/api/v1/repos/{repo['owner']['login']}/{repo['name']}/compare/{before}...{after}.diff"
+        headers = {"Authorization": f"token {settings.GITEA_BOT_TOKEN}"}
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(api_url, headers=headers)
+                if resp.status_code == 200:
+                    return resp.text
+                else:
+                    logger.error(f"Failed to fetch commit diff: {resp.status_code} - {resp.text[:200]}")
+                    return ""
+        except Exception as e:
+            logger.error(f"Failed to fetch commit diff: {e}")
+            return ""
+
     async def _post_gitea_comment(self, repo: Dict, issue_number: int, body: str):
         if not settings.GITEA_HOST_URL or not settings.GITEA_BOT_TOKEN:
             logger.error("GITEA_HOST_URL or GITEA_BOT_TOKEN not configured")
@@ -463,3 +499,32 @@ class CIService:
                      logger.error(f"Gitea API Error: {resp.status_code} - {resp.text}")
         except Exception as e:
             logger.error(f"Failed to post Gitea comment: {e}")
+
+    async def _get_conversation_history(self, repo: Dict, issue_number: int) -> str:
+        """
+        Fetch the conversation history (comments) from Gitea API
+        """
+        if not settings.GITEA_HOST_URL or not settings.GITEA_BOT_TOKEN:
+            return "无"
+            
+        api_url = f"{settings.GITEA_HOST_URL}/api/v1/repos/{repo['owner']['login']}/{repo['name']}/issues/{issue_number}/comments"
+        headers = {"Authorization": f"token {settings.GITEA_BOT_TOKEN}"}
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(api_url, headers=headers)
+                if resp.status_code == 200:
+                    comments = resp.json()
+                    history_parts = []
+                    for c in comments:
+                        user = c.get("user", {}).get("username") or c.get("user", {}).get("login") or "未知用户"
+                        body = c.get("body", "")
+                        history_parts.append(f"{user}: {body}")
+                    
+                    return "\n".join(history_parts) if history_parts else "无"
+                else:
+                    logger.error(f"Failed to fetch conversation history: {resp.status_code} - {resp.text[:200]}")
+                    return "无"
+        except Exception as e:
+            logger.error(f"Failed to fetch PR conversation history: {e}")
+            return "无"
