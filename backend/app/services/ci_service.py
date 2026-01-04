@@ -119,12 +119,12 @@ class CIService:
                      logger.info(f"📂 Fetching sync diff: {before_sha} -> {after_sha}")
                      sync_diff = await self._get_commit_diff(repo_path, str(before_sha), str(after_sha))
                  
-                 if not sync_diff:
+                 if not sync_diff or (hasattr(sync_diff, "strip") and sync_diff.strip() == ""):
                      # 最终兜底说明
-                     if before_sha.startswith(after_sha): # 包含了 head^ 处理后的情况
-                          sync_diff = "(检测到强推或 HEAD 未变动，无新增差异)"
+                     if str(before_sha) == str(after_sha):
+                          sync_diff = "(推送的 HEAD 与上次评审点相同，无新增差异)"
                      else:
-                          sync_diff = f"(由于历史重写，无法通过 {before_sha} 提取增量差异，请参考全量内容)"
+                          sync_diff = "(本次同步虽有 SHA 变动，但代码内容与上次评审点完全一致。可能是进行了软重置后重新提交、修改了提交信息或进行不带内容的强推。)"
                      
                  prompt = build_pr_sync_prompt(diff_text, sync_diff, repo_context, history)
             else:
@@ -145,6 +145,11 @@ class CIService:
             footer_parts = [f"`{r.file_path}`" for r in context_results]
             footer = "\n\n---\n*本次评审参考了以下文件: " + (", ".join(footer_parts) if footer_parts else "无（使用了模型通用知识）") + "*"
             await self._post_gitea_comment(repo, pr_number, review_body + footer)
+            
+            if action == "synchronized":
+                logger.info(f"✅ Successfully posted PR Sync (Incremental) review for PR #{pr_number}")
+            else:
+                logger.info(f"✅ Successfully posted PR Review (Initial) for PR #{pr_number}")
             
             # 7. Save Record
             review_record = PRReview(
@@ -283,6 +288,7 @@ class CIService:
         footer_parts = [f"`{r.file_path}`" for r in context_results]
         footer = "\n\n---\n*本次回答参考了以下文件: " + (", ".join(footer_parts) if footer_parts else "无（使用了模型通用知识）") + "*"
         await self._post_gitea_comment(repo, issue.get("number"), answer + footer)
+        logger.info(f"✅ Successfully posted @ai-bot Chat response for PR #{issue.get('number')}")
         
         # 6. Record (Optional, maybe just log)
         review_record = PRReview(
