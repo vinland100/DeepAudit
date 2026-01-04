@@ -73,7 +73,7 @@ class CIService:
             return
 
         # 2. Sync Repository and Index
-        repo_path = await self._ensure_indexed(project, repo, branch)
+        repo_path = await self._ensure_indexed(project, repo_url, branch, pr_number=pr_number)
         if not repo_path:
             return
         
@@ -186,7 +186,7 @@ class CIService:
 
         # 2. Ensure Indexed (Important for first-time chat or if project auto-created)
         branch = repo.get("default_branch", "main")
-        repo_path = await self._ensure_indexed(project, repo, branch)
+        repo_path = await self._ensure_indexed(project, repo_url, branch, pr_number=issue.get("number"))
         if not repo_path:
             logger.error("Failed to sync/index repository for chat")
             return
@@ -302,14 +302,13 @@ class CIService:
             
         return project
 
-    async def _ensure_indexed(self, project: Project, repo: Dict, branch: str, force_rebuild: bool = False) -> Optional[str]:
+    async def _ensure_indexed(self, project: Project, repo_url: str, branch: str, pr_number: Optional[int] = None, force_rebuild: bool = False) -> Optional[str]:
         """
         Syncs the repository and ensures it is indexed.
         Returns the local path if successful.
         """
-        repo_url = repo.get("clone_url")
         # 1. Prepare Repository (Clone/Pull)
-        repo_path = await self._prepare_repository(project, repo_url, branch, settings.GITEA_BOT_TOKEN)
+        repo_path = await self._prepare_repository(project, repo_url, branch, settings.GITEA_BOT_TOKEN, pr_number=pr_number)
         
         if not repo_path:
             logger.error(f"Failed to prepare repository for project {project.id}")
@@ -336,15 +335,23 @@ class CIService:
             logger.info(f"✅ Project {project.name} indexing complete.")
             return repo_path
         except Exception as e:
+            err_msg = str(e)
+            # Detect dimension mismatch or specific embedding API errors that might require a rebuild
+            should_rebuild = any(x in err_msg.lower() for x in ["dimension", "404", "401", "400", "invalid_model"])
+            
+            if not force_rebuild and should_rebuild:
+                logger.warning(f"⚠️ Indexing error for project {project.id}: {e}. Triggering automatic full rebuild...")
+                return await self._ensure_indexed(project, repo_url, branch, pr_number=pr_number, force_rebuild=True)
+                
             logger.error(f"Indexing error for project {project.id}: {e}")
-            return repo_path # Return path anyway, maybe some files are present
+            return None # Fail properly
 
     async def _get_project_by_repo(self, repo_url: str) -> Optional[Project]:
         stmt = select(Project).where(Project.repository_url == repo_url)
         result = await self.db.execute(stmt)
         return result.scalars().first()
 
-    async def _prepare_repository(self, project: Project, repo_url: str, branch: str, token: str) -> str:
+    async def _prepare_repository(self, project: Project, repo_url: str, branch: str, token: str, pr_number: Optional[int] = None) -> str:
         """
         Clones or Updates the repository locally.
         """
@@ -381,19 +388,34 @@ class CIService:
             try:
                 # git fetch --all
                 subprocess.run(["git", "fetch", "--all"], cwd=target_dir, check=True)
-                # git checkout branch
-                subprocess.run(["git", "checkout", branch], cwd=target_dir, check=True)
-                # git reset --hard origin/branch
-                subprocess.run(["git", "reset", "--hard", f"origin/{branch}"], cwd=target_dir, check=True)
+                
+                if pr_number:
+                    # Fetch PR ref specifically from base repo: refs/pull/ID/head
+                    logger.info(f"📥 Fetching PR ref: refs/pull/{pr_number}/head")
+                    subprocess.run(["git", "fetch", "origin", f"refs/pull/{pr_number}/head"], cwd=target_dir, check=True)
+                    subprocess.run(["git", "checkout", "FETCH_HEAD"], cwd=target_dir, check=True)
+                else:
+                    # git checkout branch
+                    subprocess.run(["git", "checkout", branch], cwd=target_dir, check=True)
+                    # git reset --hard origin/branch
+                    subprocess.run(["git", "reset", "--hard", f"origin/{branch}"], cwd=target_dir, check=True)
             except Exception as e:
                 logger.error(f"Git update failed: {e}. Re-cloning...")
                 shutil.rmtree(target_dir) # Nuke and retry
-                return await self._prepare_repository(project, repo_url, branch, token)
+                return await self._prepare_repository(project, repo_url, branch, token, pr_number=pr_number)
         else:
             # Clone
             logger.info(f"📥 Cloning repo to {target_dir}")
             try:
-                subprocess.run(["git", "clone", "-b", branch, auth_url, str(target_dir)], check=True)
+                # Clone without -b first, then fetch and checkout
+                subprocess.run(["git", "clone", auth_url, str(target_dir)], check=True)
+                
+                if pr_number:
+                    logger.info(f"📥 Fetching PR ref: refs/pull/{pr_number}/head")
+                    subprocess.run(["git", "fetch", "origin", f"refs/pull/{pr_number}/head"], cwd=target_dir, check=True)
+                    subprocess.run(["git", "checkout", "FETCH_HEAD"], cwd=target_dir, check=True)
+                else:
+                    subprocess.run(["git", "checkout", branch], cwd=target_dir, check=True)
             except Exception as e:
                 logger.error(f"Git clone failed: {e}")
                 raise e
@@ -412,6 +434,9 @@ class CIService:
                 resp = await client.get(api_url, headers=headers)
                 if resp.status_code == 200:
                     return resp.text
+                elif resp.status_code == 403:
+                    logger.error(f"❌ Failed to fetch diff: 403 Forbidden. This usually means the GITEA_BOT_TOKEN lacks 'read:repository' scope. Response: {resp.text[:200]}")
+                    return ""
                 else:
                     logger.error(f"Failed to fetch diff: {resp.status_code} - {resp.text[:200]}")
                     return ""

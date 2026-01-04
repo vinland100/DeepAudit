@@ -90,6 +90,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     EMBEDDING_API_KEY: Optional[str] = None  # 嵌入模型专用 API Key（留空则使用 LLM_API_KEY）
     EMBEDDING_BASE_URL: Optional[str] = None  # 嵌入模型专用 Base URL（留空使用提供商默认地址）
+    EMBEDDING_DIMENSION: int = 0  # 嵌入模型维度（0 表示自动检测或由代码逻辑根据模型确定）
     
     # 向量数据库配置
     VECTOR_DB_PATH: str = "./data/vector_db"  # 向量数据库持久化目录

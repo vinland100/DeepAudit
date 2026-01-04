@@ -52,6 +52,7 @@ class OpenAIEmbedding(EmbeddingProvider):
         "text-embedding-3-small": 1536,
         "text-embedding-3-large": 3072,
         "text-embedding-ada-002": 1536,
+        "Qwen3-Embedding-4B": 2560,
     }
     
     def __init__(
@@ -73,7 +74,13 @@ class OpenAIEmbedding(EmbeddingProvider):
             or "https://api.openai.com/v1"
         )
         self.model = model
-        self._dimension = self.MODELS.get(model, 1536)
+        # 优先使用显式指定的维度，其次根据模型预定义，最后默认 1536
+        self._explicit_dimension = getattr(settings, "EMBEDDING_DIMENSION", 0)
+        self._dimension = (
+            self._explicit_dimension 
+            if self._explicit_dimension > 0 
+            else self.MODELS.get(model, 1536)
+        )
     
     @property
     def dimension(self) -> int:
@@ -130,6 +137,7 @@ class AzureOpenAIEmbedding(EmbeddingProvider):
         "text-embedding-3-small": 1536,
         "text-embedding-3-large": 3072,
         "text-embedding-ada-002": 1536,
+        "Qwen3-Embedding-4B": 2560,
     }
     
     # 最新的 GA API 版本
@@ -144,7 +152,13 @@ class AzureOpenAIEmbedding(EmbeddingProvider):
         self.api_key = api_key
         self.base_url = base_url or "https://your-resource.openai.azure.com"
         self.model = model
-        self._dimension = self.MODELS.get(model, 1536)
+        # 优先使用项目配置中的显式维度
+        self._explicit_dimension = getattr(settings, "EMBEDDING_DIMENSION", 0)
+        self._dimension = (
+            self._explicit_dimension 
+            if self._explicit_dimension > 0 
+            else self.MODELS.get(model, 1536)
+        )
     
     @property
     def dimension(self) -> int:
@@ -481,6 +495,7 @@ class QwenEmbedding(EmbeddingProvider):
         "text-embedding-v4": 1024,  # 支持维度: 2048, 1536, 1024(默认), 768, 512, 256, 128, 64
         "text-embedding-v3": 1024,  # 支持维度: 1024(默认), 768, 512, 256, 128, 64
         "text-embedding-v2": 1536,  # 支持维度: 1536
+        "Qwen3-Embedding-4B": 2560,
     }
     
     def __init__(
@@ -505,7 +520,14 @@ class QwenEmbedding(EmbeddingProvider):
         # DashScope 兼容 OpenAI 的 embeddings 端点
         self.base_url = base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
         self.model = model
-        self._dimension = self.MODELS.get(model, 1024)
+        
+        # 优先使用显式指定的维度，其次根据模型预定义，最后默认 1024
+        self._explicit_dimension = getattr(settings, "EMBEDDING_DIMENSION", 0)
+        self._dimension = (
+            self._explicit_dimension 
+            if self._explicit_dimension > 0 
+            else self.MODELS.get(model, 1024)
+        )
     
     @property
     def dimension(self) -> int:

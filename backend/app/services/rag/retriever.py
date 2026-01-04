@@ -164,6 +164,12 @@ class CodeRetriever:
                     if not api_key and self._provided_embedding_service:
                         api_key = getattr(self._provided_embedding_service, 'api_key', None)
 
+                    # 🔥 重要：如果用户显式指定了维度，且与存储的维度不匹配，则不应自动切换（会导致报错）
+                    explicit_dim = getattr(settings, "EMBEDDING_DIMENSION", 0)
+                    if explicit_dim > 0 and explicit_dim != stored_dimension:
+                        logger.warning(f"⚠️ Collection 维度 ({stored_dimension}) 与显式指定的维度 ({explicit_dim}) 不匹配，跳过自动切换以避免错误。")
+                        return
+
                     self.embedding_service = EmbeddingService(
                         provider=stored_provider,
                         model=stored_model,

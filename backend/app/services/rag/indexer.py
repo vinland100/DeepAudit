@@ -763,20 +763,22 @@ class CodeIndexer:
         Returns:
             (needs_rebuild, reason) - 是否需要重建及原因
         """
-        if self._initialized and not force_rebuild:
-            return self._needs_rebuild, self._rebuild_reason
+        # 如果 force_rebuild 为真，或者尚未初始化且 _needs_rebuild 已通过某种方式置为真
+        should_recreate = force_rebuild or (not self._initialized and self._needs_rebuild)
 
-        # 先初始化 vector_store（不强制重建，只是获取现有 collection）
-        await self.vector_store.initialize(force_recreate=False)
+        # 先初始化 vector_store
+        await self.vector_store.initialize(force_recreate=should_recreate)
+
+        if should_recreate:
+            self._needs_rebuild = True
+            self._rebuild_reason = "强制重建"
+            self._initialized = True
+            return True, self._rebuild_reason
 
         # 检查是否需要重建
         self._needs_rebuild, self._rebuild_reason = await self._check_rebuild_needed()
 
-        if force_rebuild:
-            self._needs_rebuild = True
-            self._rebuild_reason = "用户强制重建"
-
-        # 如果需要重建，重新初始化 vector_store（强制重建）
+        # 如果自动检测到需要重建，则再次初始化并强制重建
         if self._needs_rebuild:
             logger.info(f"🔄 需要重建索引: {self._rebuild_reason}")
             await self.vector_store.initialize(force_recreate=True)
@@ -819,10 +821,29 @@ class CodeIndexer:
         # 检查维度
         stored_dimension = stored_config.get("dimension")
         current_dimension = self.embedding_config.get("dimension")
-        if stored_dimension and current_dimension and stored_dimension != current_dimension:
+        
+        # 🔥 如果 metadata 中没有维度，尝试从 sample 中检测
+        if not stored_dimension:
+            stored_dimension = await self._detect_actual_dimension()
+            if stored_dimension:
+                 logger.debug(f"🔍 从 sample 检测到实际维度: {stored_dimension}")
+
+        if stored_dimension and current_dimension and int(stored_dimension) != int(current_dimension):
             return True, f"Embedding 维度变更: {stored_dimension} -> {current_dimension}"
 
         return False, ""
+
+    async def _detect_actual_dimension(self) -> Optional[int]:
+        """从既存向量中检测实际维度"""
+        try:
+            if hasattr(self.vector_store, '_collection') and self.vector_store._collection:
+                peek = await asyncio.to_thread(self.vector_store._collection.peek, limit=1)
+                embeddings = peek.get("embeddings")
+                if embeddings and len(embeddings) > 0:
+                    return len(embeddings[0])
+        except Exception:
+            pass
+        return None
 
     async def get_index_status(self) -> IndexStatus:
         """获取索引状态"""
@@ -873,7 +894,7 @@ class CodeIndexer:
             索引进度
         """
         # 初始化并检查是否需要重建
-        needs_rebuild, rebuild_reason = await self.initialize()
+        needs_rebuild, rebuild_reason = await self.initialize(force_rebuild=(update_mode == IndexUpdateMode.FULL))
 
         progress = IndexingProgress()
         exclude_patterns = exclude_patterns or []
