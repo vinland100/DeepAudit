@@ -100,15 +100,25 @@ class CIService:
                  history = await self._get_conversation_history(repo, pr_number)
                  
                  # 获取本次同步的具体差异 (commit diff)
+                 # Gitea payload for synchronized might have before/after at root
                  before_sha = payload.get("before")
-                 after_sha = payload.get("after")
+                 after_sha = payload.get("after") or commit_sha
+                 
+                 # 如果 payload 中没有 before_sha，尝试从数据库获取上一次评审的 commit_sha
+                 if not before_sha:
+                     logger.info(f"🔍 Webhook payload missing 'before' SHA, searching database for previous sync head...")
+                     before_sha = await self._get_previous_review_sha(project.id, pr_number)
                  
                  sync_diff = ""
-                 if before_sha and after_sha:
+                 if before_sha and after_sha and before_sha != after_sha:
+                     logger.info(f"📂 Fetching sync diff: {before_sha} -> {after_sha}")
                      sync_diff = await self._get_commit_diff(repo, before_sha, after_sha)
                  
                  if not sync_diff:
-                     sync_diff = "（无法获取本次提交的具体差异，请参考全量差异）"
+                     if before_sha == after_sha:
+                         sync_diff = "(本次推送的 Head 与上次相同，无新变更)"
+                     else:
+                         sync_diff = "(无法获取本次提交的具体差异，请参考全量差异)"
                      
                  prompt = build_pr_sync_prompt(diff_text, sync_diff, repo_context, history)
             else:
@@ -482,6 +492,24 @@ class CIService:
         except Exception as e:
             logger.error(f"Failed to fetch commit diff: {e}")
             return ""
+
+    async def _get_previous_review_sha(self, project_id: str, pr_number: int) -> Optional[str]:
+        """
+        Find the commit SHA of the most recent review for this PR.
+        This allows us to calculate the 'incremental' diff for a sync event.
+        """
+        try:
+            result = await self.db.execute(
+                select(PRReview.commit_sha)
+                .where(PRReview.project_id == project_id)
+                .where(PRReview.pr_number == pr_number)
+                .order_by(PRReview.created_at.desc())
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error fetching previous review SHA: {e}")
+            return None
 
     async def _post_gitea_comment(self, repo: Dict, issue_number: int, body: str):
         if not settings.GITEA_HOST_URL or not settings.GITEA_BOT_TOKEN:
