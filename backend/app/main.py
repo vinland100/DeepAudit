@@ -9,7 +9,11 @@ from app.db.session import AsyncSessionLocal
 from app.db.init_db import init_db
 
 # 配置日志
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
 # 禁用 uvicorn access log 和 LiteLLM INFO 日志
