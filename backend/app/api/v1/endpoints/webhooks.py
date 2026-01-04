@@ -22,7 +22,7 @@ async def process_gitea_event(event_type: str, payload: dict):
             ci_service = CIService(db)
             if event_type == "pull_request":
                 action = payload.get("action")
-                if action in ["opened", "synchronize", "reopened"]:
+                if action in ["opened", "synchronized", "reopened"]:
                     logger.info(f"Starting background PR processing for action: {action}")
                     await ci_service.handle_pr_event(payload)
                 else:

@@ -95,7 +95,7 @@ class CIService:
             repo_context = "\n".join([r.to_context_string() for r in context_results])
             
             # 5. 生成评审
-            if action == "synchronize":
+            if action == "synchronized":
                  # 增量同步模式：获取全部对话历史
                  history = await self._get_conversation_history(repo, pr_number)
                  
@@ -125,7 +125,10 @@ class CIService:
             review_body = response["content"]
             
             # 6. Post Comment
-            await self._post_gitea_comment(repo, pr_number, review_body)
+            # 附加上下文信息页脚
+            footer_parts = [f"`{r.file_path}`" for r in context_results]
+            footer = "\n\n---\n*本次评审参考了以下文件: " + (", ".join(footer_parts) if footer_parts else "无（使用了模型通用知识）") + "*"
+            await self._post_gitea_comment(repo, pr_number, review_body + footer)
             
             # 7. Save Record
             review_record = PRReview(
@@ -262,7 +265,7 @@ class CIService:
         # 7. 回复
         # 附加上下文信息页脚
         footer_parts = [f"`{r.file_path}`" for r in context_results]
-        footer = "\n\n---\n*本次回答参考了以下文件上下文: " + (", ".join(footer_parts) if footer_parts else "无（使用了模型通用知识）") + "*"
+        footer = "\n\n---\n*本次回答参考了以下文件: " + (", ".join(footer_parts) if footer_parts else "无（使用了模型通用知识）") + "*"
         await self._post_gitea_comment(repo, issue.get("number"), answer + footer)
         
         # 6. Record (Optional, maybe just log)
