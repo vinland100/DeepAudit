@@ -100,25 +100,31 @@ class CIService:
                  history = await self._get_conversation_history(repo, pr_number)
                  
                  # 获取本次同步的具体差异 (commit diff)
-                 # Gitea payload for synchronized might have before/after at root
+                 # 优先级 1: Webhook payload 提供的 before 记录
                  before_sha = payload.get("before")
                  after_sha = payload.get("after") or commit_sha
                  
-                 # 如果 payload 中没有 before_sha，尝试从数据库获取上一次评审的 commit_sha
+                 # 优先级 2: 如果 payload 缺失，尝试从数据库获取上一次评审点
                  if not before_sha:
                      logger.info(f"🔍 Webhook payload missing 'before' SHA, searching database for previous sync head...")
                      before_sha = await self._get_previous_review_sha(project.id, pr_number)
                  
+                 # 校验 & 优先级 3: 如果还是没有或 SHA 无效（强推后），回退到当前提交的父节点
+                 if not before_sha or not await self._is_sha_valid(repo_path, str(before_sha)):
+                     logger.warning(f"⚠️ Baseline SHA {before_sha} is missing or invalid (likely history rewrite). Falling back to {after_sha}^")
+                     before_sha = f"{after_sha}^"
+                 
                  sync_diff = ""
                  if before_sha and after_sha and before_sha != after_sha:
                      logger.info(f"📂 Fetching sync diff: {before_sha} -> {after_sha}")
-                     sync_diff = await self._get_commit_diff(repo, before_sha, after_sha)
+                     sync_diff = await self._get_commit_diff(repo_path, str(before_sha), str(after_sha))
                  
                  if not sync_diff:
-                     if before_sha == after_sha:
-                         sync_diff = "(本次推送的 Head 与上次相同，无新变更)"
+                     # 最终兜底说明
+                     if before_sha.startswith(after_sha): # 包含了 head^ 处理后的情况
+                          sync_diff = "(检测到强推或 HEAD 未变动，无新增差异)"
                      else:
-                         sync_diff = "(无法获取本次提交的具体差异，请参考全量差异)"
+                          sync_diff = f"(由于历史重写，无法通过 {before_sha} 提取增量差异，请参考全量内容)"
                      
                  prompt = build_pr_sync_prompt(diff_text, sync_diff, repo_context, history)
             else:
@@ -474,24 +480,50 @@ class CIService:
             logger.error(f"Failed to fetch PR diff: {e}")
             return ""
 
-    async def _get_commit_diff(self, repo: Dict, before: str, after: str) -> str:
+    async def _get_commit_diff(self, repo_path: str, before: str, after: str) -> str:
         """
-        Fetch the diff between two commits from Gitea API
+        Fetch the diff between two commits using local git command.
+        The repository must be already cloned and fetched.
         """
-        api_url = f"{settings.GITEA_HOST_URL}/api/v1/repos/{repo['owner']['login']}/{repo['name']}/compare/{before}...{after}.diff"
-        headers = {"Authorization": f"token {settings.GITEA_BOT_TOKEN}"}
-        
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(api_url, headers=headers)
-                if resp.status_code == 200:
-                    return resp.text
-                else:
-                    logger.error(f"Failed to fetch commit diff: {resp.status_code} - {resp.text[:200]}")
-                    return ""
-        except Exception as e:
-            logger.error(f"Failed to fetch commit diff: {e}")
+            # git diff before..after
+            cmd = ["git", "diff", f"{before}..{after}"]
+            logger.info(f"🛠️ Executing: {' '.join(cmd)} in {repo_path}")
+            
+            result = subprocess.run(
+                cmd,
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            diff_out = result.stdout
+            logger.info(f"📊 Git diff result size: {len(diff_out)} bytes")
+            return diff_out
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Git diff failed: {e.stderr}")
             return ""
+        except Exception as e:
+            logger.error(f"Failed to fetch commit diff via git: {e}")
+            return ""
+
+    async def _is_sha_valid(self, repo_path: str, sha: str) -> bool:
+        """
+        Check if a given SHA exists in the local repository.
+        """
+        try:
+            subprocess.run(
+                ["git", "rev-parse", "--verify", sha],
+                cwd=repo_path,
+                capture_output=True,
+                check=True
+            )
+            return True
+        except subprocess.CalledProcessError:
+            return False
+        except Exception as e:
+            logger.error(f"Error validating SHA {sha}: {e}")
+            return False
 
     async def _get_previous_review_sha(self, project_id: str, pr_number: int) -> Optional[str]:
         """
