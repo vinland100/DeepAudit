@@ -13,6 +13,7 @@ class UserBase(BaseModel):
     role: str = "member"
     github_username: Optional[str] = None
     gitlab_username: Optional[str] = None
+    gitea_username: Optional[str] = None
 
 class UserCreate(UserBase):
     email: EmailStr

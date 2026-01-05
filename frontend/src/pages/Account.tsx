@@ -38,6 +38,7 @@ export default function Account() {
     phone: "",
     github_username: "",
     gitlab_username: "",
+    gitea_username: "",
   });
   const [passwordForm, setPasswordForm] = useState({
     current_password: "",
@@ -60,6 +61,7 @@ export default function Account() {
         phone: res.data.phone || "",
         github_username: res.data.github_username || "",
         gitlab_username: res.data.gitlab_username || "",
+        gitea_username: res.data.gitea_username || "",
       });
     } catch (error) {
       console.error('Failed to load profile:', error);
@@ -285,6 +287,18 @@ export default function Account() {
                     value={form.gitlab_username}
                     onChange={(e) => setForm({ ...form, gitlab_username: e.target.value })}
                     placeholder="your-gitlab-username"
+                    className="cyber-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="gitea" className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">
+                    <GitBranch className="w-3 h-3" /> Gitea 用户名
+                  </Label>
+                  <Input
+                    id="gitea"
+                    value={form.gitea_username}
+                    onChange={(e) => setForm({ ...form, gitea_username: e.target.value })}
+                    placeholder="your-gitea-username"
                     className="cyber-input"
                   />
                 </div>

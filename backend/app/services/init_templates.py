@@ -275,8 +275,8 @@ SYSTEM_RULE_SETS = [
         "description": "基于 OWASP Top 10 2021 的安全审计规则集",
         "language": "all",
         "rule_type": "security",
-        "is_default": True,
-        "sort_order": 0,
+        "is_default": False,
+        "sort_order": 1,
         "severity_weights": {"critical": 10, "high": 5, "medium": 2, "low": 1},
         "rules": [
             {
@@ -386,8 +386,8 @@ SYSTEM_RULE_SETS = [
         "description": "通用代码质量检查规则集",
         "language": "all",
         "rule_type": "quality",
-        "is_default": False,
-        "sort_order": 1,
+        "is_default": True,
+        "sort_order": 0,
         "severity_weights": {"critical": 10, "high": 5, "medium": 2, "low": 1},
         "rules": [
             {
@@ -550,6 +550,11 @@ async def init_system_templates(db: AsyncSession) -> None:
             )
             db.add(template)
             logger.info(f"✓ 创建系统提示词模板: {template_data['name']}")
+        else:
+            # 更新已存在的系统模板的默认状态和排序
+            existing.is_default = template_data.get("is_default", False)
+            existing.sort_order = template_data.get("sort_order", 0)
+            db.add(existing)
     
     await db.flush()
 
@@ -599,6 +604,11 @@ async def init_system_rule_sets(db: AsyncSession) -> None:
                 db.add(rule)
             
             logger.info(f"✓ 创建系统规则集: {rule_set_data['name']} ({len(rule_set_data.get('rules', []))} 条规则)")
+        else:
+            # 更新已存在的系统规则集的默认状态和排序
+            existing.is_default = rule_set_data.get("is_default", False)
+            existing.sort_order = rule_set_data.get("sort_order", 0)
+            db.add(existing)
     
     await db.flush()
 

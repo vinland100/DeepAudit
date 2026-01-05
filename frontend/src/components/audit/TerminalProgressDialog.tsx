@@ -467,7 +467,6 @@ export default function TerminalProgressDialog({
                             <Terminal className="w-5 h-5 text-primary" />
                             <div>
                                 <span className="text-lg font-bold uppercase tracking-[0.15em] text-slate-800 dark:text-[#f0e6d3]">AUDIT_TERMINAL</span>
-                                <span className="text-xs text-slate-500 dark:text-[#5a6577] ml-2 tracking-wider">v3.0</span>
                             </div>
                         </div>
 

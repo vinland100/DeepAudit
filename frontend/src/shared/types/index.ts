@@ -16,6 +16,7 @@ export interface Profile {
   role: 'admin' | 'member';
   github_username?: string;
   gitlab_username?: string;
+  gitea_username?: string;
   created_at: string;
   updated_at: string;
 }

@@ -1,17 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union
 from jose import jwt
-import bcrypt  # Import first
+import bcrypt
 
-# MonkeyPatch passlib/bcrypt compatibility (passlib expects __about__)
-if not hasattr(bcrypt, "__about__"):
-    from types import SimpleNamespace
-    bcrypt.__about__ = SimpleNamespace(__version__=bcrypt.__version__)
-
-from passlib.context import CryptContext
 from app.core.config import settings
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = settings.ALGORITHM
 
@@ -29,10 +21,36 @@ def create_access_token(
     return encoded_jwt
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    """
+    Verify a password against a hash.
+    Explicitly truncate to 72 bytes to avoid bcrypt ValueError and maintain compatibility.
+    """
+    if not plain_password or not hashed_password:
+        return False
+        
+    try:
+        password_bytes = plain_password.encode("utf-8")
+        if len(password_bytes) > 72:
+            password_bytes = password_bytes[:72]
+            
+        return bcrypt.checkpw(
+            password_bytes,
+            hashed_password.encode("utf-8")
+        )
+    except Exception:
+        return False
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    """
+    Generate a bcrypt hash of the password.
+    Explicitly truncate to 72 bytes for consistency.
+    """
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+        
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password_bytes, salt).decode("utf-8")
 
 
 

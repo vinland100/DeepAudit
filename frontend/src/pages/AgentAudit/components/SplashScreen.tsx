@@ -15,7 +15,7 @@ interface SplashScreenProps {
 // Enhanced boot sequence messages with icons
 const BOOT_SEQUENCE = [
   { text: "[INIT] Loading DeepAudit Core...", delay: 0, type: 'init' },
-  { text: "[SCAN] AI Code Review Engine v3.0", delay: 200, type: 'scan' },
+  { text: "[SCAN] AI Code Review Engine", delay: 200, type: 'scan' },
   { text: "[LOAD] Vulnerability Pattern Database", delay: 400, type: 'load' },
   { text: "[SYNC] Agent Orchestration Module", delay: 600, type: 'sync' },
   { text: "[READY] System Online", delay: 800, type: 'ready' },
@@ -234,10 +234,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
               <AppLogo size="xl" subtitle="AI Code Review Bot" />
             </div>
           </div>
-          {/* Version tag */}
-          <div className="mt-2 text-[10px] font-mono text-primary/50 tracking-widest">
-            [ v3.0.0 // NEURAL_CORE ]
-          </div>
+          {/* Version tag removed */}
         </div>
 
         {/* Terminal window - adaptive styling */}
