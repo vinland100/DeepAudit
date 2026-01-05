@@ -26,6 +26,7 @@ import {
     ExternalLink,
     GitGraph,
 } from "lucide-react";
+import AppLogo from "@/components/common/AppLogo";
 import routes from "@/app/routes";
 import { version } from "../../../package.json";
 
@@ -123,41 +124,14 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
 
                         <Link
                             to="/"
-                            className={`flex items-center gap-3 group transition-all duration-300 ${collapsed ? 'justify-center' : 'flex-1 min-w-0'}`}
+                            className={`flex items-center group transition-all duration-300 ${collapsed ? 'justify-center' : 'flex-1 min-w-0'}`}
                             onClick={() => setMobileOpen(false)}
                         >
-                            {/* Logo Icon with enhanced styling */}
-                            <div className="relative flex-shrink-0">
-                                <div
-                                    className="w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(255,107,44,0.3)]"
-                                    style={{
-                                        background: 'linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--primary) / 0.05))',
-                                        border: '1px solid hsl(var(--primary) / 0.4)'
-                                    }}
-                                >
-                                    <img
-                                        src="/logo_deepaudit.png"
-                                        alt="DeepAudit"
-                                        className="w-7 h-7 object-contain transition-transform duration-300 group-hover:scale-110"
-                                    />
-                                </div>
-                                {/* Glow effect */}
-                                <div className="absolute inset-0 bg-primary/30 rounded-xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                            </div>
-
-                            {/* Logo Text with enhanced styling */}
-                            <div className={`transition-all duration-300 ${collapsed ? 'w-0 opacity-0 overflow-hidden' : 'flex-1 min-w-0 opacity-100'}`}>
-                                <div
-                                    className="text-xl font-bold tracking-wider font-mono leading-tight"
-                                    style={{ textShadow: '0 0 25px rgba(255,107,44,0.4)' }}
-                                >
-                                    <span className="text-primary">DEEP</span>
-                                    <span style={{ color: 'var(--cyber-text)' }}>AUDIT</span>
-                                </div>
-                                <div className="text-[10px] text-muted-foreground tracking-[0.15em] uppercase mt-0.5">
-                                    Security Agent
-                                </div>
-                            </div>
+                            <AppLogo
+                                collapsed={collapsed}
+                                size="md"
+                                subtitle="AI Code Review Bot"
+                            />
                         </Link>
 
                         {/* Collapse button with enhanced styling */}

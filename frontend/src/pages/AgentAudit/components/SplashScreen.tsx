@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Shield, Zap } from "lucide-react";
+import AppLogo from "@/components/common/AppLogo";
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -14,7 +15,7 @@ interface SplashScreenProps {
 // Enhanced boot sequence messages with icons
 const BOOT_SEQUENCE = [
   { text: "[INIT] Loading DeepAudit Core...", delay: 0, type: 'init' },
-  { text: "[SCAN] Neural Analysis Engine v3.0", delay: 200, type: 'scan' },
+  { text: "[SCAN] AI Code Review Engine v3.0", delay: 200, type: 'scan' },
   { text: "[LOAD] Vulnerability Pattern Database", delay: 400, type: 'load' },
   { text: "[SYNC] Agent Orchestration Module", delay: 600, type: 'sync' },
   { text: "[READY] System Online", delay: 800, type: 'ready' },
@@ -229,175 +230,148 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
         <div className="w-full max-w-2xl">
           {/* Logo with adaptive styling */}
           <div className={`text-center mb-10 transition-all duration-1000 ${showLogo ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-8"}`}>
-            {/* Logo text - light mode: clean, dark mode: neon glow */}
-            <div className="logo-glitch relative inline-block">
-              <div
-                className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-wider mb-3 font-mono relative logo-text"
-              >
-                <span className="text-primary">DEEP</span>
-                <span className="text-gray-800 dark:text-white">AUDIT</span>
-              </div>
-              {/* Glitch layers - dark mode only, opacity controlled by CSS */}
-              <div className="glitch-layer glitch-layer-1 text-5xl sm:text-6xl md:text-7xl font-bold tracking-wider font-mono absolute top-0 left-0 w-full opacity-0 dark:opacity-0">
-                <span className="text-cyan-500">DEEP</span>
-                <span className="text-white">AUDIT</span>
-              </div>
-              <div className="glitch-layer glitch-layer-2 text-5xl sm:text-6xl md:text-7xl font-bold tracking-wider font-mono absolute top-0 left-0 w-full opacity-0 dark:opacity-0">
-                <span className="text-red-500">DEEP</span>
-                <span className="text-white">AUDIT</span>
-              </div>
+            <div className="flex justify-center mb-6">
+              <AppLogo size="xl" subtitle="AI Code Review Bot" />
             </div>
-            {/* Subtitle - adaptive styling */}
-            <div className="flex items-center justify-center gap-3 text-gray-500 dark:text-gray-400 text-sm tracking-[0.3em] uppercase mt-4">
-              <div className="w-12 h-px bg-gradient-to-r from-transparent via-primary/40 dark:via-cyan-500/50 to-transparent" />
-              <Shield className="w-4 h-4 text-primary/70 dark:text-cyan-500/70" />
-              <span className="dark:cyber-text">Autonomous Security Agent</span>
-              <Shield className="w-4 h-4 text-primary/70 dark:text-cyan-500/70" />
-              <div className="w-12 h-px bg-gradient-to-r from-transparent via-primary/40 dark:via-cyan-500/50 to-transparent" />
+          </div>
+          {/* Version tag */}
+          <div className="mt-2 text-[10px] font-mono text-primary/50 tracking-widest">
+            [ v3.0.0 // NEURAL_CORE ]
+          </div>
+        </div>
+
+        {/* Terminal window - adaptive styling */}
+        <div
+          className="relative rounded-xl overflow-hidden bg-white dark:bg-transparent border border-gray-200 dark:border-transparent shadow-xl dark:shadow-none"
+          onClick={handleTerminalClick}
+        >
+          {/* Terminal border glow - dark mode only */}
+          <div className="absolute inset-0 rounded-xl border border-primary/30 pointer-events-none hidden dark:block" />
+          <div className="absolute inset-0 rounded-xl shadow-[0_0_30px_rgba(255,107,44,0.2),inset_0_0_30px_rgba(0,0,0,0.5)] pointer-events-none hidden dark:block" />
+
+          {/* Terminal header - adaptive */}
+          <div className="relative flex items-center gap-3 px-4 py-2.5 bg-gray-100 dark:bg-gray-950 border-b border-gray-200 dark:border-primary/20">
+            {/* Window dots */}
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-400 dark:bg-red-500 dark:shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+              <div className="w-3 h-3 rounded-full bg-yellow-400 dark:bg-yellow-500 dark:shadow-[0_0_10px_rgba(234,179,8,0.8)]" />
+              <div className="w-3 h-3 rounded-full bg-green-400 dark:bg-green-500 dark:shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
             </div>
-            {/* Version tag */}
-            <div className="mt-2 text-[10px] font-mono text-primary/50 tracking-widest">
-              [ v3.0.0 // NEURAL_CORE ]
+            {/* Terminal title */}
+            <div className="flex-1 flex items-center justify-center gap-2">
+              <span className="text-primary/60 text-xs">▶</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-mono tracking-[0.15em] uppercase">
+                root@deepaudit:~#
+              </span>
+              <span className="w-2 h-4 bg-primary/80 animate-pulse" />
+            </div>
+            {/* Status indicator */}
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse dark:shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-500/80 font-mono">LIVE</span>
             </div>
           </div>
 
-          {/* Terminal window - adaptive styling */}
+          {/* Terminal content - adaptive */}
           <div
-            className="relative rounded-xl overflow-hidden bg-white dark:bg-transparent border border-gray-200 dark:border-transparent shadow-xl dark:shadow-none"
-            onClick={handleTerminalClick}
+            ref={terminalRef}
+            className="relative p-5 font-mono text-sm h-80 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-gray-950/95"
           >
-            {/* Terminal border glow - dark mode only */}
-            <div className="absolute inset-0 rounded-xl border border-primary/30 pointer-events-none hidden dark:block" />
-            <div className="absolute inset-0 rounded-xl shadow-[0_0_30px_rgba(255,107,44,0.2),inset_0_0_30px_rgba(0,0,0,0.5)] pointer-events-none hidden dark:block" />
-
-            {/* Terminal header - adaptive */}
-            <div className="relative flex items-center gap-3 px-4 py-2.5 bg-gray-100 dark:bg-gray-950 border-b border-gray-200 dark:border-primary/20">
-              {/* Window dots */}
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-400 dark:bg-red-500 dark:shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
-                <div className="w-3 h-3 rounded-full bg-yellow-400 dark:bg-yellow-500 dark:shadow-[0_0_10px_rgba(234,179,8,0.8)]" />
-                <div className="w-3 h-3 rounded-full bg-green-400 dark:bg-green-500 dark:shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
-              </div>
-              {/* Terminal title */}
-              <div className="flex-1 flex items-center justify-center gap-2">
-                <span className="text-primary/60 text-xs">▶</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono tracking-[0.15em] uppercase">
-                  root@deepaudit:~#
-                </span>
-                <span className="w-2 h-4 bg-primary/80 animate-pulse" />
-              </div>
-              {/* Status indicator */}
-              <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse dark:shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-500/80 font-mono">LIVE</span>
-              </div>
-            </div>
-
-            {/* Terminal content - adaptive */}
-            <div
-              ref={terminalRef}
-              className="relative p-5 font-mono text-sm h-80 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-gray-950/95"
-            >
-              {/* Boot logs - adaptive styling */}
-              {bootLogs.map((log, i) => (
-                <div
-                  key={`boot-${i}`}
-                  className={`mb-2 flex items-center gap-2 ${
-                    log.includes("[READY]") ? "text-emerald-600 dark:text-emerald-400" :
-                    log.includes("[INIT]") ? "text-primary" :
+            {/* Boot logs - adaptive styling */}
+            {bootLogs.map((log, i) => (
+              <div
+                key={`boot-${i}`}
+                className={`mb-2 flex items-center gap-2 ${log.includes("[READY]") ? "text-emerald-600 dark:text-emerald-400" :
+                  log.includes("[INIT]") ? "text-primary" :
                     log.includes("[SCAN]") ? "text-violet-600 dark:text-violet-400" :
-                    log.includes("[LOAD]") ? "text-amber-600 dark:text-amber-400" :
-                    log.includes("[SYNC]") ? "text-cyan-600 dark:text-cyan-400" :
-                    "text-gray-500"
+                      log.includes("[LOAD]") ? "text-amber-600 dark:text-amber-400" :
+                        log.includes("[SYNC]") ? "text-cyan-600 dark:text-cyan-400" :
+                          "text-gray-500"
                   }`}
-                  style={{
-                    animation: "fadeSlideIn 0.3s ease-out",
-                    animationFillMode: "both",
-                    animationDelay: `${i * 0.08}s`
-                  }}
-                >
-                  <span className="text-emerald-600 dark:text-emerald-500/60">$</span>
-                  <span className={`w-1.5 h-1.5 rounded-full ${
-                    log.includes("[READY]") ? "bg-emerald-500 dark:shadow-[0_0_8px_rgba(52,211,153,0.8)]" :
-                    log.includes("[INIT]") ? "bg-primary dark:shadow-[0_0_8px_rgba(255,107,44,0.8)]" :
+                style={{
+                  animation: "fadeSlideIn 0.3s ease-out",
+                  animationFillMode: "both",
+                  animationDelay: `${i * 0.08}s`
+                }}
+              >
+                <span className="text-emerald-600 dark:text-emerald-500/60">$</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${log.includes("[READY]") ? "bg-emerald-500 dark:shadow-[0_0_8px_rgba(52,211,153,0.8)]" :
+                  log.includes("[INIT]") ? "bg-primary dark:shadow-[0_0_8px_rgba(255,107,44,0.8)]" :
                     log.includes("[SCAN]") ? "bg-violet-500 dark:shadow-[0_0_8px_rgba(167,139,250,0.8)]" :
-                    log.includes("[LOAD]") ? "bg-amber-500 dark:shadow-[0_0_8px_rgba(251,191,36,0.8)]" :
-                    log.includes("[SYNC]") ? "bg-cyan-500 dark:shadow-[0_0_8px_rgba(34,211,238,0.8)]" :
-                    "bg-gray-400 dark:bg-gray-600"
+                      log.includes("[LOAD]") ? "bg-amber-500 dark:shadow-[0_0_8px_rgba(251,191,36,0.8)]" :
+                        log.includes("[SYNC]") ? "bg-cyan-500 dark:shadow-[0_0_8px_rgba(34,211,238,0.8)]" :
+                          "bg-gray-400 dark:bg-gray-600"
                   }`} />
-                  <span>{log}</span>
-                </div>
-              ))}
+                <span>{log}</span>
+              </div>
+            ))}
 
-              {/* Welcome message - adaptive */}
-              {bootComplete && (
-                <div className="mt-5 mb-4 pt-4 border-t border-gray-200 dark:border-primary/20">
-                  <div className="flex items-center gap-2 text-primary mb-2">
-                    <Zap className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-                    <span className="font-semibold text-cyan-600 dark:text-cyan-400">// SYSTEM READY</span>
-                  </div>
-                  <div className="text-gray-600 dark:text-gray-400 text-sm pl-6">
-                    Execute <span className="text-emerald-600 dark:text-emerald-400 font-bold px-2 py-0.5 bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/30 rounded">'audit'</span> to initialize security scan protocol
-                  </div>
-                  <div className="text-gray-400 dark:text-gray-600 text-xs pl-6 mt-1">
-                    [ Type 'help' for available commands ]
-                  </div>
+            {/* Welcome message - adaptive */}
+            {bootComplete && (
+              <div className="mt-5 mb-4 pt-4 border-t border-gray-200 dark:border-primary/20">
+                <div className="flex items-center gap-2 text-primary mb-2">
+                  <Zap className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                  <span className="font-semibold text-cyan-600 dark:text-cyan-400">// SYSTEM READY</span>
                 </div>
-              )}
-
-              {/* Command history */}
-              {commandHistory.map((entry, i) => (
-                <div key={`cmd-${i}`} className="mb-2">
-                  <div className="flex items-center gap-2 text-foreground">
-                    <span className="text-emerald-500">$</span>
-                    <span>{entry.input}</span>
-                  </div>
-                  {entry.output && (
-                    <div className={`ml-4 mt-1 whitespace-pre-wrap text-xs ${
-                      entry.isError ? "text-red-400" : "text-muted-foreground"
-                    }`}>
-                      {entry.output}
-                    </div>
-                  )}
+                <div className="text-gray-600 dark:text-gray-400 text-sm pl-6">
+                  Execute <span className="text-emerald-600 dark:text-emerald-400 font-bold px-2 py-0.5 bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/30 rounded">'audit'</span> to initialize security scan protocol
                 </div>
-              ))}
+                <div className="text-gray-400 dark:text-gray-600 text-xs pl-6 mt-1">
+                  [ Type 'help' for available commands ]
+                </div>
+              </div>
+            )}
 
-              {/* Current input line */}
-              {bootComplete && (
+            {/* Command history */}
+            {commandHistory.map((entry, i) => (
+              <div key={`cmd-${i}`} className="mb-2">
                 <div className="flex items-center gap-2 text-foreground">
                   <span className="text-emerald-500">$</span>
-                  <div className="flex-1 relative">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={currentInput}
-                      onChange={(e) => setCurrentInput(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      className="absolute inset-0 w-full bg-transparent text-transparent outline-none border-none"
-                      style={{ caretColor: "transparent" }}
-                      spellCheck={false}
-                      autoComplete="off"
-                      autoFocus
-                    />
-                    <span className="text-foreground">{currentInput}</span>
-                    <span
-                      className={`inline-block w-2 h-4 bg-emerald-400 ml-0.5 align-middle transition-opacity ${
-                        cursorBlink ? "opacity-100" : "opacity-0"
-                      }`}
-                    />
-                  </div>
+                  <span>{entry.input}</span>
                 </div>
-              )}
-            </div>
-          </div>
+                {entry.output && (
+                  <div className={`ml-4 mt-1 whitespace-pre-wrap text-xs ${entry.isError ? "text-red-400" : "text-muted-foreground"
+                    }`}>
+                    {entry.output}
+                  </div>
+                )}
+              </div>
+            ))}
 
-          {/* Hint */}
-          <div className={`mt-4 text-center transition-all duration-500 ${bootComplete ? "opacity-100" : "opacity-0"}`}>
-            <div className="flex items-center justify-center gap-3">
-              <div className="h-px w-8 bg-gradient-to-r from-transparent to-gray-700" />
-              <span className="text-muted-foreground text-xs font-mono tracking-wider">PRESS ENTER TO EXECUTE</span>
-              <div className="h-px w-8 bg-gradient-to-l from-transparent to-gray-700" />
-            </div>
+            {/* Current input line */}
+            {bootComplete && (
+              <div className="flex items-center gap-2 text-foreground">
+                <span className="text-emerald-500">$</span>
+                <div className="flex-1 relative">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={currentInput}
+                    onChange={(e) => setCurrentInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="absolute inset-0 w-full bg-transparent text-transparent outline-none border-none"
+                    style={{ caretColor: "transparent" }}
+                    spellCheck={false}
+                    autoComplete="off"
+                    autoFocus
+                  />
+                  <span className="text-foreground">{currentInput}</span>
+                  <span
+                    className={`inline-block w-2 h-4 bg-emerald-400 ml-0.5 align-middle transition-opacity ${cursorBlink ? "opacity-100" : "opacity-0"
+                      }`}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Hint */}
+        <div className={`mt-4 text-center transition-all duration-500 ${bootComplete ? "opacity-100" : "opacity-0"}`}>
+          <div className="flex items-center justify-center gap-3">
+            <div className="h-px w-8 bg-gradient-to-r from-transparent to-gray-700" />
+            <span className="text-muted-foreground text-xs font-mono tracking-wider">PRESS ENTER TO EXECUTE</span>
+            <div className="h-px w-8 bg-gradient-to-l from-transparent to-gray-700" />
           </div>
         </div>
       </div>
@@ -572,7 +546,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
           text-shadow: 0 0 10px rgba(52,211,153,0.8), 0 0 20px rgba(52,211,153,0.4);
         }
       `}</style>
-    </div>
+    </div >
   );
 }
 

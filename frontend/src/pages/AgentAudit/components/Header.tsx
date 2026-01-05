@@ -5,6 +5,7 @@
  */
 
 import { Square, Download, Play, Loader2, Radio, Cpu, Sparkles } from "lucide-react";
+import AppLogo from "@/components/common/AppLogo";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./StatusBadge";
 import type { HeaderProps } from "../types";
@@ -26,27 +27,14 @@ export function Header({
 
       {/* Left side - Brand and task info */}
       <div className="flex items-center gap-5 relative z-10">
-        {/* Logo section with enhanced styling */}
         <div className="flex items-center gap-3 pr-5 border-r border-border/50">
-          <div className="relative group">
-            {/* Logo background glow */}
-            <div className="absolute inset-0 bg-primary/20 rounded-lg blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="relative p-2 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30">
-              <Cpu className="w-5 h-5 text-primary" />
-              {isRunning && (
-                <>
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.6)]" />
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping opacity-75" />
-                </>
-              )}
+          <AppLogo size="sm" subtitle="AI Code Review Bot" />
+          {isRunning && (
+            <div className="relative ml-[-12px] mt-[-20px]">
+              <span className="absolute w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.6)]" />
+              <span className="absolute w-2 h-2 bg-emerald-400 rounded-full animate-ping opacity-75" />
             </div>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-bold text-foreground tracking-wider text-base leading-tight">
-              DEEP<span className="text-primary">AUDIT</span>
-            </span>
-            <span className="text-[10px] text-muted-foreground tracking-[0.2em] uppercase">Security Agent</span>
-          </div>
+          )}
         </div>
 
         {/* Task info with enhanced styling */}

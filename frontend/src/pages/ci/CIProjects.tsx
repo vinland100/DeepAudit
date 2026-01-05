@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GitGraph, ArrowRight, Trash2, Clock } from "lucide-react";
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNowStrict } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 interface CIProject {
@@ -102,7 +102,7 @@ const CIProjects: React.FC = () => {
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                         <Clock className="w-4 h-4" />
                                         <span>
-                                            Latest: {project.latest_pr_activity ? formatDistanceToNow(new Date(project.latest_pr_activity), { addSuffix: true, locale: zhCN }) : 'Never'}
+                                            AI 最后回复: {project.latest_pr_activity ? formatDistanceToNowStrict(new Date(project.latest_pr_activity), { addSuffix: true, locale: zhCN }) : '从无回复'}
                                         </span>
                                     </div>
 

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { User, Mail, Lock, Terminal, Shield, Cpu } from 'lucide-react';
+import AppLogo from '@/components/common/AppLogo';
 import { version } from '../../package.json';
 
 export default function Register() {
@@ -112,29 +113,14 @@ export default function Register() {
       <div className="w-full max-w-md relative z-30 px-4">
         {/* Logo & Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center p-3 cyber-dialog border border-border/60 rounded-lg mb-6"
-               style={{ boxShadow: '0 0 30px rgba(255,107,44,0.1)' }}>
-            <img
-              src="/logo_deepaudit.png"
-              alt="DeepAudit"
-              className="w-14 h-14 object-contain"
-            />
+          <div className="flex flex-col items-center justify-center mb-6">
+            <AppLogo size="lg" subtitle="Create New Account" />
           </div>
-          <div
-            className="text-3xl font-bold tracking-wider mb-2 font-mono"
-            style={{ textShadow: "0 0 30px rgba(255,107,44,0.5), 0 0 60px rgba(255,107,44,0.3)" }}
-          >
-            <span className="text-primary">DEEP</span>
-            <span className="text-foreground">AUDIT</span>
-          </div>
-          <p className="text-sm font-mono text-muted-foreground">
-            // Create New Account
-          </p>
         </div>
 
         {/* Register Form Card */}
         <div className="cyber-dialog border border-border/60 rounded-lg overflow-hidden"
-             style={{ boxShadow: '0 4px 30px rgba(0,0,0,0.5)' }}>
+          style={{ boxShadow: '0 4px 30px rgba(0,0,0,0.5)' }}>
           {/* Card Header */}
           <div className="flex items-center gap-2 px-4 py-3 cyber-bg-elevated border-b border-border">
             <div className="flex items-center gap-1.5">

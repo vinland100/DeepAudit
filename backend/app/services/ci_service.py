@@ -11,7 +11,7 @@ import subprocess
 import json
 from typing import Dict, Any, List, Optional
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 import httpx
 
@@ -164,7 +164,7 @@ class CIService:
             self.db.add(review_record)
             
             # Update project activity
-            project.latest_pr_activity = datetime.utcnow()
+            project.latest_pr_activity = datetime.now(timezone.utc)
             await self.db.commit()
 
         except Exception as e:
@@ -300,6 +300,9 @@ class CIService:
             context_used=json.dumps([r.file_path for r in context_results])
         )
         self.db.add(review_record)
+        
+        # Update project activity
+        project.latest_pr_activity = datetime.now(timezone.utc)
         await self.db.commit()
 
 
