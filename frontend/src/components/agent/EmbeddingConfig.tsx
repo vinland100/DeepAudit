@@ -208,7 +208,7 @@ export default function EmbeddingConfigPanel() {
             <div className="bg-muted p-3 rounded-lg border border-border">
               <p className="text-xs text-muted-foreground uppercase mb-1">提供商</p>
               <Badge className="bg-primary/20 text-primary border-primary/50 font-mono">
-                {currentConfig.provider}
+                {providers.find(p => p.id === currentConfig.provider)?.name || currentConfig.provider}
               </Badge>
             </div>
             <div className="bg-muted p-3 rounded-lg border border-border">
@@ -231,8 +231,11 @@ export default function EmbeddingConfigPanel() {
       <div className="cyber-card p-6 space-y-6">
         {/* 提供商选择 */}
         <div className="space-y-2">
-          <Label className="text-xs font-bold text-muted-foreground uppercase">嵌入模型提供商</Label>
-          <Select value={selectedProvider} onValueChange={handleProviderChange}>
+          <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center justify-between">
+            <span>嵌入模型提供商</span>
+            <span className="text-[10px] text-amber-500/80 normal-case font-normal border border-amber-500/30 px-1 rounded">.env 固定配置 (只读)</span>
+          </Label>
+          <Select value={selectedProvider} onValueChange={handleProviderChange} disabled>
             <SelectTrigger className="h-12 cyber-input">
               <SelectValue placeholder="选择提供商" />
             </SelectTrigger>
@@ -270,6 +273,7 @@ export default function EmbeddingConfigPanel() {
               onChange={(e) => setSelectedModel(e.target.value)}
               placeholder="输入模型名称"
               className="h-10 cyber-input"
+              disabled
             />
             {selectedProviderInfo.models.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
@@ -279,11 +283,10 @@ export default function EmbeddingConfigPanel() {
                     key={model}
                     type="button"
                     onClick={() => setSelectedModel(model)}
-                    className={`px-2 py-1 text-xs font-mono rounded border transition-colors ${
-                      selectedModel === model
-                        ? "bg-primary/20 border-primary/50 text-primary"
-                        : "bg-muted border-border text-muted-foreground hover:border-border hover:text-foreground"
-                    }`}
+                    className={`px-2 py-1 text-xs font-mono rounded border transition-colors ${selectedModel === model
+                      ? "bg-primary/20 border-primary/50 text-primary"
+                      : "bg-muted border-border text-muted-foreground hover:border-border hover:text-foreground"
+                      }`}
                   >
                     {model}
                   </button>
@@ -306,6 +309,7 @@ export default function EmbeddingConfigPanel() {
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="输入 API Key"
               className="h-10 cyber-input"
+              disabled
             />
             <p className="text-xs text-muted-foreground">
               API Key 将安全存储，不会显示在页面上
@@ -326,14 +330,15 @@ export default function EmbeddingConfigPanel() {
               selectedProvider === "ollama"
                 ? "http://localhost:11434"
                 : selectedProvider === "huggingface"
-                ? "https://router.huggingface.co"
-                : selectedProvider === "cohere"
-                ? "https://api.cohere.com/v2"
-                : selectedProvider === "jina"
-                ? "https://api.jina.ai/v1"
-                : "https://api.openai.com/v1"
+                  ? "https://router.huggingface.co"
+                  : selectedProvider === "cohere"
+                    ? "https://api.cohere.com/v2"
+                    : selectedProvider === "jina"
+                      ? "https://api.jina.ai/v1"
+                      : "https://api.openai.com/v1"
             }
             className="h-10 cyber-input"
+            disabled
           />
           <p className="text-xs text-muted-foreground">
             用于 API 代理或自托管服务
@@ -350,6 +355,7 @@ export default function EmbeddingConfigPanel() {
             min={1}
             max={500}
             className="h-10 cyber-input w-32"
+            disabled
           />
           <p className="text-xs text-muted-foreground">
             每批嵌入的文本数量，建议 50-100
@@ -359,11 +365,10 @@ export default function EmbeddingConfigPanel() {
         {/* 测试结果 */}
         {testResult && (
           <div
-            className={`p-4 rounded-lg ${
-              testResult.success
-                ? "bg-emerald-500/10 border border-emerald-500/30"
-                : "bg-rose-500/10 border border-rose-500/30"
-            }`}
+            className={`p-4 rounded-lg ${testResult.success
+              ? "bg-emerald-500/10 border border-emerald-500/30"
+              : "bg-rose-500/10 border border-rose-500/30"
+              }`}
           >
             <div className="flex items-center gap-2 mb-2">
               {testResult.success ? (
@@ -372,9 +377,8 @@ export default function EmbeddingConfigPanel() {
                 <AlertCircle className="w-5 h-5 text-rose-400" />
               )}
               <span
-                className={`font-bold ${
-                  testResult.success ? "text-emerald-400" : "text-rose-400"
-                }`}
+                className={`font-bold ${testResult.success ? "text-emerald-400" : "text-rose-400"
+                  }`}
               >
                 {testResult.success ? "测试成功" : "测试失败"}
               </span>
@@ -398,37 +402,26 @@ export default function EmbeddingConfigPanel() {
         <div className="flex items-center gap-3 pt-4 border-t border-border border-dashed">
           <Button
             onClick={handleTest}
-            disabled={testing || !selectedProvider || !selectedModel}
+            disabled={testing}
             variant="outline"
-            className="cyber-btn-outline h-10"
+            className="h-10 border-orange-500/30 hover:bg-orange-500/10 text-orange-400"
           >
             {testing ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
-              <PlayCircle className="w-4 h-4 mr-2" />
+              <Zap className="w-4 h-4 mr-2" />
             )}
             测试连接
           </Button>
 
           <Button
-            onClick={handleSave}
-            disabled={saving || !selectedProvider || !selectedModel}
-            className="cyber-btn-primary h-10"
-          >
-            {saving ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Check className="w-4 h-4 mr-2" />
-            )}
-            保存配置
-          </Button>
-
-          <Button
             onClick={loadData}
             variant="ghost"
-            className="cyber-btn-ghost ml-auto h-10"
+            size="icon"
+            className="h-10 w-10 text-muted-foreground hover:text-foreground ml-auto"
+            title="刷新配置"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>

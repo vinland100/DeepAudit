@@ -39,55 +39,31 @@ class LLMService:
         """
         获取LLM配置
         
-        🔥 优先级（从高到低）：
-        1. 数据库用户配置（系统配置页面保存的配置）
-        2. 环境变量配置（.env 文件中的配置）
-        
-        如果用户配置中某个字段为空，则自动回退到环境变量。
+        🔥 锁定模式：始终从环境变量（.env）读取
+        不再合并数据库中的用户配置，确保系统一致性和安全性。
         """
         if self._config is None:
-            user_llm_config = self._user_config.get('llmConfig', {})
-            
-            # 🔥 Provider 优先级：用户配置 > 环境变量
-            provider_str = user_llm_config.get('llmProvider') or getattr(settings, 'LLM_PROVIDER', 'openai')
+            # 锁定：全部来自 settings
+            provider_str = settings.LLM_PROVIDER
             provider = self._parse_provider(provider_str)
             
-            # 🔥 API Key 优先级：用户配置 > 环境变量通用配置 > 环境变量平台专属配置
-            api_key = (
-                user_llm_config.get('llmApiKey') or
-                getattr(settings, 'LLM_API_KEY', '') or
-                self._get_provider_api_key_from_user_config(provider, user_llm_config) or
-                self._get_provider_api_key(provider)
-            )
+            # API Key 优先级：平台专属配置 > 通用 LLM_API_KEY
+            api_key = self._get_provider_api_key(provider) or settings.LLM_API_KEY
             
-            # 🔥 Base URL 优先级：用户配置 > 环境变量
-            base_url = (
-                user_llm_config.get('llmBaseUrl') or
-                getattr(settings, 'LLM_BASE_URL', None) or
-                self._get_provider_base_url(provider)
-            )
+            # Base URL 优先级：通用 LLM_BASE_URL > 平台默认
+            base_url = settings.LLM_BASE_URL or self._get_provider_base_url(provider)
             
-            # 🔥 Model 优先级：用户配置 > 环境变量 > 默认模型
-            model = (
-                user_llm_config.get('llmModel') or
-                getattr(settings, 'LLM_MODEL', '') or
-                DEFAULT_MODELS.get(provider, 'gpt-4o-mini')
-            )
+            # Model
+            model = settings.LLM_MODEL or DEFAULT_MODELS.get(provider, 'gpt-4o-mini')
             
-            # 🔥 Timeout 优先级：用户配置（毫秒） > 环境变量（秒）
-            timeout_ms = user_llm_config.get('llmTimeout')
-            if timeout_ms:
-                # 用户配置是毫秒，转换为秒
-                timeout = int(timeout_ms / 1000) if timeout_ms > 1000 else int(timeout_ms)
-            else:
-                # 环境变量是秒
-                timeout = int(getattr(settings, 'LLM_TIMEOUT', 150))
+            # Timeout (settings 中是秒)
+            timeout = int(settings.LLM_TIMEOUT)
             
-            # 🔥 Temperature 优先级：用户配置 > 环境变量
-            temperature = user_llm_config.get('llmTemperature') if user_llm_config.get('llmTemperature') is not None else float(getattr(settings, 'LLM_TEMPERATURE', 0.1))
+            # Temperature
+            temperature = float(settings.LLM_TEMPERATURE)
             
-            # 🔥 Max Tokens 优先级：用户配置 > 环境变量
-            max_tokens = user_llm_config.get('llmMaxTokens') or int(getattr(settings, 'LLM_MAX_TOKENS', 4096))
+            # Max Tokens
+            max_tokens = int(settings.LLM_MAX_TOKENS)
             
             self._config = LLMConfig(
                 provider=provider,
@@ -99,28 +75,9 @@ class LLMService:
                 max_tokens=max_tokens,
             )
         return self._config
-    
-    def _get_provider_api_key_from_user_config(self, provider: LLMProvider, user_llm_config: Dict[str, Any]) -> Optional[str]:
-        """从用户配置中获取平台专属API Key"""
-        provider_key_map = {
-            LLMProvider.OPENAI: 'openaiApiKey',
-            LLMProvider.GEMINI: 'geminiApiKey',
-            LLMProvider.CLAUDE: 'claudeApiKey',
-            LLMProvider.QWEN: 'qwenApiKey',
-            LLMProvider.DEEPSEEK: 'deepseekApiKey',
-            LLMProvider.ZHIPU: 'zhipuApiKey',
-            LLMProvider.MOONSHOT: 'moonshotApiKey',
-            LLMProvider.BAIDU: 'baiduApiKey',
-            LLMProvider.MINIMAX: 'minimaxApiKey',
-            LLMProvider.DOUBAO: 'doubaoApiKey',
-        }
-        key_name = provider_key_map.get(provider)
-        if key_name:
-            return user_llm_config.get(key_name)
-        return None
-    
+
     def _get_provider_api_key(self, provider: LLMProvider) -> str:
-        """根据提供商获取API Key"""
+        """根据提供商从 settings 获取专属 API Key"""
         provider_key_map = {
             LLMProvider.OPENAI: 'OPENAI_API_KEY',
             LLMProvider.GEMINI: 'GEMINI_API_KEY',
@@ -132,12 +89,12 @@ class LLMService:
             LLMProvider.BAIDU: 'BAIDU_API_KEY',
             LLMProvider.MINIMAX: 'MINIMAX_API_KEY',
             LLMProvider.DOUBAO: 'DOUBAO_API_KEY',
-            LLMProvider.OLLAMA: None,  # Ollama 不需要 API Key
         }
         key_name = provider_key_map.get(provider)
         if key_name:
             return getattr(settings, key_name, '') or ''
-        return 'ollama'  # Ollama的默认值
+        return ''
+    
     
     def _get_provider_base_url(self, provider: LLMProvider) -> Optional[str]:
         """根据提供商获取Base URL"""

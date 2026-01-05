@@ -339,7 +339,7 @@ export function SystemConfig() {
                 </span>
               ) : (
                 <span className="text-amber-400 flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" /> 请配置 LLM API Key
+                  <AlertCircle className="h-4 w-4" /> 请在 .env 文件中配置 LLM (只读模式)
                 </span>
               )}
             </span>
@@ -378,8 +378,11 @@ export function SystemConfig() {
           <div className="cyber-card p-6 space-y-6">
             {/* Provider Selection */}
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-muted-foreground uppercase">选择 LLM 提供商</Label>
-              <Select value={config.llmProvider} onValueChange={(v) => updateConfig('llmProvider', v)}>
+              <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center justify-between">
+                <span>选择 LLM 提供商</span>
+                <span className="text-[10px] text-amber-500/80 normal-case font-normal border border-amber-500/30 px-1 rounded">.env 固定配置 (只读)</span>
+              </Label>
+              <Select value={config.llmProvider} onValueChange={(v) => updateConfig('llmProvider', v)} disabled>
                 <SelectTrigger className="h-12 cyber-input">
                   <SelectValue />
                 </SelectTrigger>
@@ -419,6 +422,7 @@ export function SystemConfig() {
                     onChange={(e) => updateConfig('llmApiKey', e.target.value)}
                     placeholder={config.llmProvider === 'baidu' ? 'API_KEY:SECRET_KEY 格式' : '输入你的 API Key'}
                     className="h-12 cyber-input"
+                    disabled
                   />
                   <Button
                     variant="outline"
@@ -441,6 +445,7 @@ export function SystemConfig() {
                   onChange={(e) => updateConfig('llmModel', e.target.value)}
                   placeholder={`默认: ${DEFAULT_MODELS[config.llmProvider] || 'auto'}`}
                   className="h-10 cyber-input"
+                  disabled
                 />
               </div>
               <div className="space-y-2">
@@ -450,6 +455,7 @@ export function SystemConfig() {
                   onChange={(e) => updateConfig('llmBaseUrl', e.target.value)}
                   placeholder="留空使用官方地址，或填入中转站地址"
                   className="h-10 cyber-input"
+                  disabled
                 />
               </div>
             </div>
@@ -462,7 +468,7 @@ export function SystemConfig() {
               </div>
               <Button
                 onClick={testLLMConnection}
-                disabled={testingLLM || (!isConfigured && config.llmProvider !== 'ollama')}
+                disabled={testingLLM}
                 className="cyber-btn-primary h-10"
               >
                 {testingLLM ? (
@@ -503,71 +509,28 @@ export function SystemConfig() {
                 {showDebugInfo && llmTestResult.debug && (
                   <div className="mt-3 pt-3 border-t border-border/50">
                     <div className="text-xs font-mono space-y-1 text-muted-foreground">
-                      <div className="font-bold text-foreground mb-2">连接信息:</div>
-                      <div>Provider: <span className="text-foreground">{String(llmTestResult.debug.provider)}</span></div>
-                      <div>Model: <span className="text-foreground">{String(llmTestResult.debug.model_used || llmTestResult.debug.model_requested || 'N/A')}</span></div>
-                      <div>Base URL: <span className="text-foreground">{String(llmTestResult.debug.base_url_used || llmTestResult.debug.base_url_requested || '(default)')}</span></div>
-                      <div>Adapter: <span className="text-foreground">{String(llmTestResult.debug.adapter_type || 'N/A')}</span></div>
-                      <div>API Key: <span className="text-foreground">{String(llmTestResult.debug.api_key_prefix)} (长度: {String(llmTestResult.debug.api_key_length)})</span></div>
-                      <div>耗时: <span className="text-foreground">{String(llmTestResult.debug.elapsed_time_ms || 'N/A')} ms</span></div>
-
-                      {/* 用户保存的配置参数 */}
-                      {llmTestResult.debug.saved_config && (
-                        <div className="mt-3 pt-2 border-t border-border/30">
-                          <div className="font-bold text-cyan-400 mb-2">已保存的配置参数:</div>
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                            <div>温度: <span className="text-foreground">{String((llmTestResult.debug.saved_config as Record<string, unknown>).temperature ?? 'N/A')}</span></div>
-                            <div>最大Tokens: <span className="text-foreground">{String((llmTestResult.debug.saved_config as Record<string, unknown>).max_tokens ?? 'N/A')}</span></div>
-                            <div>超时: <span className="text-foreground">{String((llmTestResult.debug.saved_config as Record<string, unknown>).timeout_ms ?? 'N/A')} ms</span></div>
-                            <div>请求间隔: <span className="text-foreground">{String((llmTestResult.debug.saved_config as Record<string, unknown>).gap_ms ?? 'N/A')} ms</span></div>
-                            <div>并发数: <span className="text-foreground">{String((llmTestResult.debug.saved_config as Record<string, unknown>).concurrency ?? 'N/A')}</span></div>
-                            <div>最大文件数: <span className="text-foreground">{String((llmTestResult.debug.saved_config as Record<string, unknown>).max_analyze_files ?? 'N/A')}</span></div>
-                            <div>输出语言: <span className="text-foreground">{String((llmTestResult.debug.saved_config as Record<string, unknown>).output_language ?? 'N/A')}</span></div>
-                          </div>
-                        </div>
+                      <div className="font-bold text-foreground mb-2">测试详情:</div>
+                      {!!llmTestResult.debug.provider && (
+                        <div>提供商: <span className="text-foreground">{String(llmTestResult.debug.provider)}</span></div>
+                      )}
+                      {!!llmTestResult.debug.model && (
+                        <div>当前模型: <span className="text-foreground">{String(llmTestResult.debug.model)}</span></div>
+                      )}
+                      {!!llmTestResult.debug.duration_s && (
+                        <div>耗时: <span className="text-foreground">{String(llmTestResult.debug.duration_s)}s</span></div>
+                      )}
+                      {llmTestResult.debug.issues_found !== undefined && (
+                        <div>测试分析结果: <span className="text-emerald-400">发现 {String(llmTestResult.debug.issues_found)} 个问题 (测试代码)</span></div>
                       )}
 
-                      {/* 测试时实际使用的参数 */}
-                      {llmTestResult.debug.test_params && (
-                        <div className="mt-2 pt-2 border-t border-border/30">
-                          <div className="font-bold text-emerald-400 mb-2">测试时使用的参数:</div>
-                          <div className="grid grid-cols-3 gap-x-4">
-                            <div>温度: <span className="text-foreground">{String((llmTestResult.debug.test_params as Record<string, unknown>).temperature ?? 'N/A')}</span></div>
-                            <div>超时: <span className="text-foreground">{String((llmTestResult.debug.test_params as Record<string, unknown>).timeout ?? 'N/A')}s</span></div>
-                            <div>MaxTokens: <span className="text-foreground">{String((llmTestResult.debug.test_params as Record<string, unknown>).max_tokens ?? 'N/A')}</span></div>
-                          </div>
-                        </div>
+                      {!!llmTestResult.debug.error && (
+                        <div className="text-rose-400 mt-2 font-bold">错误详情: {String(llmTestResult.debug.error)}</div>
                       )}
 
-                      {llmTestResult.debug.error_category && (
-                        <div className="mt-2">错误类型: <span className="text-rose-400">{String(llmTestResult.debug.error_category)}</span></div>
-                      )}
-                      {llmTestResult.debug.error_type && (
-                        <div>异常类型: <span className="text-rose-400">{String(llmTestResult.debug.error_type)}</span></div>
-                      )}
-                      {llmTestResult.debug.status_code && (
-                        <div>HTTP 状态码: <span className="text-rose-400">{String(llmTestResult.debug.status_code)}</span></div>
-                      )}
-                      {llmTestResult.debug.api_response && (
-                        <div className="mt-2">
-                          <div className="font-bold text-amber-400">API 服务器返回:</div>
-                          <pre className="mt-1 p-2 bg-amber-500/10 border border-amber-500/30 rounded text-xs overflow-x-auto">
-                            {String(llmTestResult.debug.api_response)}
-                          </pre>
-                        </div>
-                      )}
-                      {llmTestResult.debug.error_message && (
-                        <div className="mt-2">
-                          <div className="font-bold text-foreground">完整错误信息:</div>
-                          <pre className="mt-1 p-2 bg-background/50 rounded text-xs overflow-x-auto max-h-32 overflow-y-auto">
-                            {String(llmTestResult.debug.error_message)}
-                          </pre>
-                        </div>
-                      )}
-                      {llmTestResult.debug.traceback && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">完整堆栈跟踪</summary>
-                          <pre className="mt-1 p-2 bg-background/50 rounded text-xs overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap">
+                      {!!llmTestResult.debug.traceback && (
+                        <details className="mt-2 text-[10px]">
+                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">完整堆栈跟踪 (Traceback)</summary>
+                          <pre className="mt-1 p-2 bg-background/50 rounded overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap border border-border/20">
                             {String(llmTestResult.debug.traceback)}
                           </pre>
                         </details>
@@ -589,6 +552,7 @@ export function SystemConfig() {
                     value={config.llmTimeout}
                     onChange={(e) => updateConfig('llmTimeout', Number(e.target.value))}
                     className="h-10 cyber-input"
+                    disabled
                   />
                 </div>
                 <div className="space-y-2">
@@ -601,6 +565,7 @@ export function SystemConfig() {
                     value={config.llmTemperature}
                     onChange={(e) => updateConfig('llmTemperature', Number(e.target.value))}
                     className="h-10 cyber-input"
+                    disabled
                   />
                 </div>
                 <div className="space-y-2">
@@ -610,6 +575,7 @@ export function SystemConfig() {
                     value={config.llmMaxTokens}
                     onChange={(e) => updateConfig('llmMaxTokens', Number(e.target.value))}
                     className="h-10 cyber-input"
+                    disabled
                   />
                 </div>
               </div>
@@ -902,13 +868,15 @@ export function SystemConfig() {
       </Tabs>
 
       {/* Floating Save Button */}
-      {hasChanges && (
-        <div className="fixed bottom-6 right-6 cyber-card p-4 z-50">
-          <Button onClick={saveConfig} className="cyber-btn-primary h-12">
-            <Save className="w-4 h-4 mr-2" /> 保存所有更改
-          </Button>
-        </div>
-      )}
+      {
+        hasChanges && (
+          <div className="fixed bottom-6 right-6 cyber-card p-4 z-50">
+            <Button onClick={saveConfig} className="cyber-btn-primary h-12">
+              <Save className="w-4 h-4 mr-2" /> 保存所有更改
+            </Button>
+          </div>
+        )
+      }
 
       {/* Delete SSH Key Confirmation Dialog */}
       <AlertDialog open={showDeleteKeyDialog} onOpenChange={setShowDeleteKeyDialog}>
@@ -943,6 +911,6 @@ export function SystemConfig() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div >
   );
 }

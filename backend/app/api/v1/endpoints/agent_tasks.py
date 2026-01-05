@@ -668,15 +668,11 @@ async def _get_user_config(db: AsyncSession, user_id: Optional[str]) -> Optional
         )
         config = result.scalar_one_or_none()
         
-        if config and config.llm_config:
-            user_llm_config = json.loads(config.llm_config) if config.llm_config else {}
+        if config:
             user_other_config = json.loads(config.other_config) if config.other_config else {}
-            
-            user_llm_config = decrypt_config(user_llm_config, SENSITIVE_LLM_FIELDS)
             user_other_config = decrypt_config(user_other_config, SENSITIVE_OTHER_FIELDS)
             
             return {
-                "llmConfig": user_llm_config,
                 "otherConfig": user_other_config,
             }
     except Exception as e:
@@ -746,41 +742,19 @@ async def _initialize_tools(
     try:
         await emit(f"🔍 正在初始化 RAG 系统...")
 
-        # 从用户配置中获取 embedding 配置
-        user_llm_config = (user_config or {}).get('llmConfig', {})
-        user_other_config = (user_config or {}).get('otherConfig', {})
-        user_embedding_config = user_other_config.get('embedding_config', {})
-
-        # Embedding Provider 优先级：用户嵌入配置 > 环境变量
-        embedding_provider = (
-            user_embedding_config.get('provider') or
-            getattr(settings, 'EMBEDDING_PROVIDER', 'openai')
-        )
-
-        # Embedding Model 优先级：用户嵌入配置 > 环境变量
-        embedding_model = (
-            user_embedding_config.get('model') or
-            getattr(settings, 'EMBEDDING_MODEL', 'text-embedding-3-small')
-        )
-
-        # API Key 优先级：用户嵌入配置 > 环境变量 EMBEDDING_API_KEY > 用户 LLM 配置 > 环境变量 LLM_API_KEY
-        # 注意：API Key 可以共享，因为很多用户使用同一个 OpenAI Key 做 LLM 和 Embedding
+        # 锁定模式：Embedding 配置始终来自 settings (.env)
+        embedding_provider = settings.EMBEDDING_PROVIDER
+        embedding_model = settings.EMBEDDING_MODEL
+        
+        # API Key 优先级：EMBEDDING_API_KEY > LLM_API_KEY
         embedding_api_key = (
-            user_embedding_config.get('api_key') or
-            getattr(settings, 'EMBEDDING_API_KEY', None) or
-            user_llm_config.get('llmApiKey') or
-            getattr(settings, 'LLM_API_KEY', '') or
-            ''
+            getattr(settings, "EMBEDDING_API_KEY", None) or 
+            settings.LLM_API_KEY or 
+            ""
         )
-
-        # Base URL 优先级：用户嵌入配置 > 环境变量 EMBEDDING_BASE_URL > None（使用提供商默认地址）
-        # 🔥 重要：Base URL 不应该回退到 LLM 的 base_url，因为 Embedding 和 LLM 可能使用完全不同的服务
-        # 例如：LLM 使用 SiliconFlow，但 Embedding 使用 HuggingFace
-        embedding_base_url = (
-            user_embedding_config.get('base_url') or
-            getattr(settings, 'EMBEDDING_BASE_URL', None) or
-            None
-        )
+        
+        # Base URL 优先级：EMBEDDING_BASE_URL > None
+        embedding_base_url = getattr(settings, "EMBEDDING_BASE_URL", None)
 
         logger.info(f"RAG 配置: provider={embedding_provider}, model={embedding_model}, base_url={embedding_base_url or '(使用默认)'}")
         await emit(f"📊 Embedding 配置: {embedding_provider}/{embedding_model}")

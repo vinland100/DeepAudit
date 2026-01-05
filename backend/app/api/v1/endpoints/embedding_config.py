@@ -172,83 +172,29 @@ EMBEDDING_PROVIDERS: List[EmbeddingProvider] = [
 EMBEDDING_CONFIG_KEY = "embedding_config"
 
 
+def mask_api_key(key: Optional[str]) -> str:
+    """部分遮盖API Key，显示前3位和后4位"""
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return "***"
+    return f"{key[:3]}***{key[-4:]}"
+
+
 async def get_embedding_config_from_db(db: AsyncSession, user_id: str) -> EmbeddingConfig:
     """从数据库获取嵌入配置（异步）"""
-    result = await db.execute(
-        select(UserConfig).where(UserConfig.user_id == user_id)
-    )
-    user_config = result.scalar_one_or_none()
-
-    if user_config and user_config.other_config:
-        try:
-            other_config = json.loads(user_config.other_config) if isinstance(user_config.other_config, str) else user_config.other_config
-            embedding_data = other_config.get(EMBEDDING_CONFIG_KEY)
-
-            if embedding_data:
-                config = EmbeddingConfig(
-                    provider=embedding_data.get("provider", settings.EMBEDDING_PROVIDER),
-                    model=embedding_data.get("model", settings.EMBEDDING_MODEL),
-                    api_key=embedding_data.get("api_key"),
-                    base_url=embedding_data.get("base_url"),
-                    dimensions=embedding_data.get("dimensions"),
-                    batch_size=embedding_data.get("batch_size", 100),
-                )
-                print(f"[EmbeddingConfig] 读取用户 {user_id} 的嵌入配置: provider={config.provider}, model={config.model}")
-                return config
-        except (json.JSONDecodeError, AttributeError) as e:
-            print(f"[EmbeddingConfig] 解析用户 {user_id} 配置失败: {e}")
-
-    # 返回默认配置
-    print(f"[EmbeddingConfig] 用户 {user_id} 无保存配置，返回默认值")
+    # 嵌入配置始终来自系统默认（.env），不再允许用户覆盖
+    print(f"[EmbeddingConfig] 返回系统默认嵌入配置（来自 .env）")
     return EmbeddingConfig(
         provider=settings.EMBEDDING_PROVIDER,
         model=settings.EMBEDDING_MODEL,
-        api_key=settings.LLM_API_KEY,
-        base_url=settings.LLM_BASE_URL,
+        api_key=mask_api_key(settings.EMBEDDING_API_KEY or settings.LLM_API_KEY),
+        base_url=settings.EMBEDDING_BASE_URL or settings.LLM_BASE_URL,
+        dimensions=settings.EMBEDDING_DIMENSION if settings.EMBEDDING_DIMENSION > 0 else None,
         batch_size=100,
     )
 
 
-async def save_embedding_config_to_db(db: AsyncSession, user_id: str, config: EmbeddingConfig) -> None:
-    """保存嵌入配置到数据库（异步）"""
-    result = await db.execute(
-        select(UserConfig).where(UserConfig.user_id == user_id)
-    )
-    user_config = result.scalar_one_or_none()
-
-    # 准备嵌入配置数据
-    embedding_data = {
-        "provider": config.provider,
-        "model": config.model,
-        "api_key": config.api_key,
-        "base_url": config.base_url,
-        "dimensions": config.dimensions,
-        "batch_size": config.batch_size,
-    }
-
-    if user_config:
-        # 更新现有配置
-        try:
-            other_config = json.loads(user_config.other_config) if user_config.other_config else {}
-        except (json.JSONDecodeError, TypeError):
-            other_config = {}
-
-        other_config[EMBEDDING_CONFIG_KEY] = embedding_data
-        user_config.other_config = json.dumps(other_config)
-        # 🔥 显式标记 other_config 字段已修改，确保 SQLAlchemy 检测到变化
-        flag_modified(user_config, "other_config")
-    else:
-        # 创建新配置
-        user_config = UserConfig(
-            id=str(uuid.uuid4()),
-            user_id=user_id,
-            llm_config="{}",
-            other_config=json.dumps({EMBEDDING_CONFIG_KEY: embedding_data}),
-        )
-        db.add(user_config)
-
-    await db.commit()
-    print(f"[EmbeddingConfig] 已保存用户 {user_id} 的嵌入配置: provider={config.provider}, model={config.model}")
 
 
 # ============ API Endpoints ============
@@ -274,7 +220,9 @@ async def get_current_config(
     config = await get_embedding_config_from_db(db, current_user.id)
 
     # 获取维度
-    dimensions = _get_model_dimensions(config.provider, config.model)
+    dimensions = config.dimensions
+    if not dimensions or dimensions <= 0:
+        dimensions = _get_model_dimensions(config.provider, config.model)
 
     return EmbeddingConfigResponse(
         provider=config.provider,
@@ -288,30 +236,12 @@ async def get_current_config(
 
 @router.put("/config")
 async def update_config(
-    config: EmbeddingConfig,
-    db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """
-    更新嵌入模型配置（持久化到数据库）
+    更新嵌入模型配置（已禁用，固定从 .env 读取）
     """
-    # 验证提供商
-    provider_ids = [p.id for p in EMBEDDING_PROVIDERS]
-    if config.provider not in provider_ids:
-        raise HTTPException(status_code=400, detail=f"不支持的提供商: {config.provider}")
-
-    # 获取提供商信息（用于检查 API Key 要求）
-    provider = next((p for p in EMBEDDING_PROVIDERS if p.id == config.provider), None)
-    # 注意：不再强制验证模型名称，允许用户输入自定义模型
-
-    # 检查 API Key
-    if provider and provider.requires_api_key and not config.api_key:
-        raise HTTPException(status_code=400, detail=f"{config.provider} 需要 API Key")
-
-    # 保存到数据库
-    await save_embedding_config_to_db(db, current_user.id, config)
-
-    return {"message": "配置已保存", "provider": config.provider, "model": config.model}
+    return {"message": "嵌入模型配置已锁定，请在 .env 文件中进行修改", "provider": settings.EMBEDDING_PROVIDER, "model": settings.EMBEDDING_MODEL}
 
 
 @router.post("/test", response_model=TestEmbeddingResponse)
@@ -319,22 +249,22 @@ async def test_embedding(
     request: TestEmbeddingRequest,
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
-    """
-    测试嵌入模型配置
-    """
+    """测试当前系统的嵌入模型配置"""
     import time
+    from app.services.rag.embeddings import EmbeddingService
     
     try:
         start_time = time.time()
         
-        # 创建临时嵌入服务
-        from app.services.rag.embeddings import EmbeddingService
+        # 始终使用系统的真实配置进行测试
+        # API Key 优先级：EMBEDDING_API_KEY > LLM_API_KEY
+        api_key = getattr(settings, "EMBEDDING_API_KEY", None) or settings.LLM_API_KEY
         
         service = EmbeddingService(
-            provider=request.provider,
-            model=request.model,
-            api_key=request.api_key,
-            base_url=request.base_url,
+            provider=settings.EMBEDDING_PROVIDER,
+            model=settings.EMBEDDING_MODEL,
+            api_key=api_key,
+            base_url=settings.EMBEDDING_BASE_URL,
             cache_enabled=False,
         )
         
@@ -345,13 +275,14 @@ async def test_embedding(
         
         return TestEmbeddingResponse(
             success=True,
-            message=f"嵌入成功! 维度: {len(embedding)}",
+            message=f"嵌入成功! 提供商: {settings.EMBEDDING_PROVIDER}, 维度: {len(embedding)}",
             dimensions=len(embedding),
             sample_embedding=embedding[:5],  # 返回前 5 维
             latency_ms=latency_ms,
         )
         
     except Exception as e:
+        print(f"❌ 嵌入测试失败: {str(e)}")
         return TestEmbeddingResponse(
             success=False,
             message=f"嵌入失败: {str(e)}",

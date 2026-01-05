@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/shared/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,7 @@ import type { Profile } from "@/shared/types";
 
 export default function Account() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -128,13 +130,13 @@ export default function Account() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('access_token');
+    logout();
     toast.success("已退出登录");
     navigate('/login');
   };
 
   const handleSwitchAccount = () => {
-    localStorage.removeItem('access_token');
+    logout();
     navigate('/login');
   };
 
