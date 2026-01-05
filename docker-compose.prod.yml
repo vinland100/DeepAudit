@@ -1,5 +1,5 @@
 # =============================================
-# DeepAudit v3.0.2 生产环境一键部署配置
+# DeepAudit 生产环境一键部署配置
 # =============================================
 # 使用预构建的 GHCR 镜像，无需本地构建
 # 部署命令: curl -fsSL https://raw.githubusercontent.com/lintsinghua/DeepAudit/main/docker-compose.prod.yml | docker compose -f - up -d
@@ -15,7 +15,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=deepaudit
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,7 +28,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -79,7 +79,7 @@ services:
     restart: "no"
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/deepaudit
-    command: [".venv/bin/alembic", "upgrade", "head"]
+    command: [ ".venv/bin/alembic", "upgrade", "head" ]
     depends_on:
       db:
         condition: service_healthy

@@ -133,7 +133,7 @@ export default function Login() {
       </div>
 
       <div className="absolute bottom-4 left-4 text-sm font-mono text-muted-foreground z-30">
-        DEEPAUDIT_AUTH_v3
+        DEEPAUDIT_AUTH
       </div>
 
       <div className="absolute bottom-4 right-4 text-sm font-mono text-muted-foreground z-30">
@@ -262,7 +262,7 @@ export default function Login() {
         {/* Version Info */}
         <div className="mt-6 text-center">
           <p className="font-mono text-sm text-muted-foreground uppercase">
-            Version {version} · Secure Connection
+            Secure Connection
           </p>
         </div>
       </div>
