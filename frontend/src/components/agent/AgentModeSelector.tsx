@@ -114,10 +114,6 @@ export default function AgentModeSelector({
             className="sr-only"
           />
 
-          {/* 推荐标签 */}
-          <div className="absolute -top-2 -right-2 px-2 py-0.5 bg-violet-600 text-white text-xs font-bold uppercase font-mono rounded shadow-[0_0_10px_rgba(139,92,246,0.5)]">
-            推荐
-          </div>
 
           <div className="flex items-center gap-2 mb-2">
             <div className={cn(

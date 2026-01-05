@@ -110,12 +110,20 @@ async def github_api(url: str, token: str = None) -> Any:
         headers["Authorization"] = f"Bearer {t}"
     
     async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.get(url, headers=headers)
-        if response.status_code == 403:
-            raise Exception("GitHub API 403：请配置 GITHUB_TOKEN 或确认仓库权限/频率限制")
-        if response.status_code != 200:
-            raise Exception(f"GitHub API {response.status_code}: {url}")
-        return response.json()
+        try:
+            response = await client.get(url, headers=headers)
+            if response.status_code == 403:
+                raise Exception("GitHub API 403：请配置 GITHUB_TOKEN 或确认仓库权限/频率限制")
+            if response.status_code != 200:
+                raise Exception(f"GitHub API {response.status_code}: {url}")
+            
+            data = response.json()
+            if not isinstance(data, (list, dict)):
+                print(f"[API] 警告: GitHub API 返回了非预期的格式: {type(data)}")
+            return data
+        except Exception as e:
+            print(f"[API] GitHub API 调用失败: {url}, 错误: {e}")
+            raise
 
 
 
@@ -127,14 +135,22 @@ async def gitea_api(url: str, token: str = None) -> Any:
         headers["Authorization"] = f"token {t}"
     
     async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.get(url, headers=headers)
-        if response.status_code == 401:
-            raise Exception("Gitea API 401：请配置 GITEA_TOKEN 或确认仓库权限")
-        if response.status_code == 403:
-            raise Exception("Gitea API 403：请确认仓库权限/频率限制")
-        if response.status_code != 200:
-            raise Exception(f"Gitea API {response.status_code}: {url}")
-        return response.json()
+        try:
+            response = await client.get(url, headers=headers)
+            if response.status_code == 401:
+                raise Exception("Gitea API 401：请配置 GITEA_TOKEN 或确认仓库权限")
+            if response.status_code == 403:
+                raise Exception("Gitea API 403：请确认仓库权限/频率限制")
+            if response.status_code != 200:
+                raise Exception(f"Gitea API {response.status_code}: {url}")
+            
+            data = response.json()
+            if not isinstance(data, (list, dict)):
+                 print(f"[API] 警告: Gitea API 返回了非预期的格式: {type(data)}")
+            return data
+        except Exception as e:
+            print(f"[API] Gitea API 调用失败: {url}, 错误: {e}")
+            raise
 
 
 async def gitlab_api(url: str, token: str = None) -> Any:
@@ -145,14 +161,22 @@ async def gitlab_api(url: str, token: str = None) -> Any:
         headers["PRIVATE-TOKEN"] = t
     
     async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.get(url, headers=headers)
-        if response.status_code == 401:
-            raise Exception("GitLab API 401：请配置 GITLAB_TOKEN 或确认仓库权限")
-        if response.status_code == 403:
-            raise Exception("GitLab API 403：请确认仓库权限/频率限制")
-        if response.status_code != 200:
-            raise Exception(f"GitLab API {response.status_code}: {url}")
-        return response.json()
+        try:
+            response = await client.get(url, headers=headers)
+            if response.status_code == 401:
+                raise Exception("GitLab API 401：请配置 GITLAB_TOKEN 或确认仓库权限")
+            if response.status_code == 403:
+                raise Exception("GitLab API 403：请确认仓库权限/频率限制")
+            if response.status_code != 200:
+                raise Exception(f"GitLab API {response.status_code}: {url}")
+            
+            data = response.json()
+            if not isinstance(data, (list, dict)):
+                print(f"[API] 警告: GitLab API 返回了非预期的格式: {type(data)}")
+            return data
+        except Exception as e:
+            print(f"[API] GitLab API 调用失败: {url}, 错误: {e}")
+            raise
 
 
 async def fetch_file_content(url: str, headers: Dict[str, str] = None) -> Optional[str]:
@@ -175,7 +199,11 @@ async def get_github_branches(repo_url: str, token: str = None) -> List[str]:
     branches_url = f"https://api.github.com/repos/{owner}/{repo}/branches?per_page=100"
     branches_data = await github_api(branches_url, token)
     
-    return [b["name"] for b in branches_data]
+    if not isinstance(branches_data, list):
+        print(f"[Branch] 警告: 获取 GitHub 分支列表返回非列表数据: {branches_data}")
+        return []
+        
+    return [b["name"] for b in branches_data if isinstance(b, dict) and "name" in b]
 
 
 
@@ -190,7 +218,11 @@ async def get_gitea_branches(repo_url: str, token: str = None) -> List[str]:
     branches_url = f"{base_url}/repos/{owner}/{repo}/branches"
     branches_data = await gitea_api(branches_url, token)
     
-    return [b["name"] for b in branches_data]
+    if not isinstance(branches_data, list):
+        print(f"[Branch] 警告: 获取 Gitea 分支列表返回非列表数据: {branches_data}")
+        return []
+        
+    return [b["name"] for b in branches_data if isinstance(b, dict) and "name" in b]
 
 
 async def get_gitlab_branches(repo_url: str, token: str = None) -> List[str]:
@@ -211,7 +243,11 @@ async def get_gitlab_branches(repo_url: str, token: str = None) -> List[str]:
     branches_url = f"{base_url}/projects/{project_path}/repository/branches?per_page=100"
     branches_data = await gitlab_api(branches_url, extracted_token)
     
-    return [b["name"] for b in branches_data]
+    if not isinstance(branches_data, list):
+        print(f"[Branch] 警告: 获取 GitLab 分支列表返回非列表数据: {branches_data}")
+        return []
+        
+    return [b["name"] for b in branches_data if isinstance(b, dict) and "name" in b]
 
 
 async def get_github_files(repo_url: str, branch: str, token: str = None, exclude_patterns: List[str] = None) -> List[Dict[str, str]]:
@@ -348,11 +384,10 @@ async def scan_repo_task(task_id: str, db_session_factory, user_config: dict = N
                 print(f"📋 排除模式: {task_exclude_patterns}")
 
             # 3. 获取文件列表
-            # 从用户配置中读取 GitHub/GitLab Token（优先使用用户配置，然后使用系统配置）
-            user_other_config = (user_config or {}).get('otherConfig', {})
-            github_token = user_other_config.get('githubToken') or settings.GITHUB_TOKEN
-            gitlab_token = user_other_config.get('gitlabToken') or settings.GITLAB_TOKEN
-            gitea_token = user_other_config.get('giteaToken') or settings.GITEA_TOKEN
+            # Git Token 始终来自系统默认（.env），逻辑锁定
+            github_token = settings.GITHUB_TOKEN
+            gitlab_token = settings.GITLAB_TOKEN
+            gitea_token = settings.GITEA_TOKEN
 
             
 

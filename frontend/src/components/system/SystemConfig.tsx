@@ -654,13 +654,17 @@ export function SystemConfig() {
         <TabsContent value="git" className="space-y-6">
           <div className="cyber-card p-6 space-y-6">
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-muted-foreground uppercase">GitHub Token (可选)</Label>
+              <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center justify-between">
+                <span>GitHub Token (可选)</span>
+                <span className="text-[10px] text-amber-500/80 normal-case font-normal border border-amber-500/30 px-1 rounded">.env 固定配置 (只读)</span>
+              </Label>
               <Input
-                type="password"
+                type="text"
                 value={config.githubToken}
                 onChange={(e) => updateConfig('githubToken', e.target.value)}
                 placeholder="ghp_xxxxxxxxxxxx"
                 className="h-10 cyber-input"
+                disabled
               />
               <p className="text-xs text-muted-foreground">
                 用于访问私有仓库。获取:{' '}
@@ -670,13 +674,17 @@ export function SystemConfig() {
               </p>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-muted-foreground uppercase">GitLab Token (可选)</Label>
+              <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center justify-between">
+                <span>GitLab Token (可选)</span>
+                <span className="text-[10px] text-amber-500/80 normal-case font-normal border border-amber-500/30 px-1 rounded">.env 固定配置 (只读)</span>
+              </Label>
               <Input
-                type="password"
+                type="text"
                 value={config.gitlabToken}
                 onChange={(e) => updateConfig('gitlabToken', e.target.value)}
                 placeholder="glpat-xxxxxxxxxxxx"
                 className="h-10 cyber-input"
+                disabled
               />
               <p className="text-xs text-muted-foreground">
                 用于访问私有仓库。获取:{' '}
@@ -686,13 +694,17 @@ export function SystemConfig() {
               </p>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-muted-foreground uppercase">Gitea Token (可选)</Label>
+              <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center justify-between">
+                <span>Gitea Token (可选)</span>
+                <span className="text-[10px] text-amber-500/80 normal-case font-normal border border-amber-500/30 px-1 rounded">.env 固定配置 (只读)</span>
+              </Label>
               <Input
-                type="password"
+                type="text"
                 value={config.giteaToken}
                 onChange={(e) => updateConfig('giteaToken', e.target.value)}
                 placeholder="sha1_xxxxxxxxxxxx"
                 className="h-10 cyber-input"
+                disabled
               />
               <p className="text-xs text-muted-foreground">
                 用于访问 Gitea 私有仓库。获取:{' '}
@@ -706,8 +718,9 @@ export function SystemConfig() {
                 <Info className="w-4 h-4 text-sky-400" />
                 提示
               </p>
+              <p className="text-muted-foreground">• Git 分布式配置已锁定至后端 .env 文件</p>
+              <p className="text-muted-foreground">• 如果需要修改，请编辑后端的 .env 环境文件并重启服务</p>
               <p className="text-muted-foreground">• 公开仓库无需配置 Token</p>
-              <p className="text-muted-foreground">• 私有仓库需要配置对应平台的 Token</p>
             </div>
           </div>
 

@@ -290,11 +290,10 @@ async def _execute_agent_task(task_id: str):
             # 获取用户配置（需要在获取项目根目录之前，以便传递 token）
             user_config = await _get_user_config(db, task.created_by)
 
-            # 从用户配置中提取 token和SSH密钥（用于私有仓库克隆）
-            other_config = (user_config or {}).get('otherConfig', {})
-            github_token = other_config.get('githubToken') or settings.GITHUB_TOKEN
-            gitlab_token = other_config.get('gitlabToken') or settings.GITLAB_TOKEN
-            gitea_token = other_config.get('giteaToken') or settings.GITEA_TOKEN
+            # Git Token 始终来自系统默认（.env），逻辑锁定
+            github_token = settings.GITHUB_TOKEN
+            gitlab_token = settings.GITLAB_TOKEN
+            gitea_token = settings.GITEA_TOKEN
 
             # 解密SSH私钥
             ssh_private_key = None

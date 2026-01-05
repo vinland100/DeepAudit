@@ -24,11 +24,11 @@ SENSITIVE_LLM_FIELDS = [
     'qwenApiKey', 'deepseekApiKey', 'zhipuApiKey', 'moonshotApiKey',
     'baiduApiKey', 'minimaxApiKey', 'doubaoApiKey'
 ]
-SENSITIVE_OTHER_FIELDS = ['githubToken', 'gitlabToken']
+SENSITIVE_OTHER_FIELDS = ['githubToken', 'gitlabToken', 'giteaToken']
 
 
 def mask_api_key(key: Optional[str]) -> str:
-    """部分遮盖API Key，显示前3位和后4位"""
+    """部分遮盖API Key/Token，显示前3位和后4位"""
     if not key:
         return ""
     if len(key) <= 8:
@@ -41,6 +41,9 @@ def encrypt_config(config: dict, sensitive_fields: list) -> dict:
     encrypted = config.copy()
     for field in sensitive_fields:
         if field in encrypted and encrypted[field]:
+            # 如果已经是掩码后的值，不要加密（说明是从前端传回来的掩码值）
+            if "***" in str(encrypted[field]):
+                continue
             encrypted[field] = encrypt_sensitive_data(encrypted[field])
     return encrypted
 
@@ -50,7 +53,11 @@ def decrypt_config(config: dict, sensitive_fields: list) -> dict:
     decrypted = config.copy()
     for field in sensitive_fields:
         if field in decrypted and decrypted[field]:
-            decrypted[field] = decrypt_sensitive_data(decrypted[field])
+            try:
+                decrypted[field] = decrypt_sensitive_data(decrypted[field])
+            except Exception:
+                # 如果解密失败，保留原样
+                pass
     return decrypted
 
 
@@ -83,6 +90,7 @@ class OtherConfigSchema(BaseModel):
     """其他配置Schema"""
     githubToken: Optional[str] = None
     gitlabToken: Optional[str] = None
+    giteaToken: Optional[str] = None
     maxAnalyzeFiles: Optional[int] = None
     llmConcurrency: Optional[int] = None
     llmGapMs: Optional[int] = None
@@ -133,8 +141,9 @@ def get_default_config() -> dict:
             "ollamaBaseUrl": settings.OLLAMA_BASE_URL or "http://localhost:11434/v1",
         },
         "otherConfig": {
-            "githubToken": settings.GITHUB_TOKEN or "",
-            "gitlabToken": settings.GITLAB_TOKEN or "",
+            "githubToken": mask_api_key(settings.GITHUB_TOKEN),
+            "gitlabToken": mask_api_key(settings.GITLAB_TOKEN),
+            "giteaToken": mask_api_key(settings.GITEA_TOKEN),
             "maxAnalyzeFiles": settings.MAX_ANALYZE_FILES,
             "llmConcurrency": settings.LLM_CONCURRENCY,
             "llmGapMs": settings.LLM_GAP_MS,
@@ -182,14 +191,15 @@ async def get_my_config(
     user_llm_config = decrypt_config(user_llm_config, SENSITIVE_LLM_FIELDS)
     user_other_config = decrypt_config(user_other_config, SENSITIVE_OTHER_FIELDS)
     
-    print(f"[Config] 用户 {current_user.id} 的保存配置:")
-    print(f"  - llmProvider: {user_llm_config.get('llmProvider')}")
-    print(f"  - llmApiKey: {'***' + user_llm_config.get('llmApiKey', '')[-4:] if user_llm_config.get('llmApiKey') else '(空)'}")
-    print(f"  - llmModel: {user_llm_config.get('llmModel')}")
-    
     # LLM配置始终来自系统默认（.env），不再允许用户覆盖
     merged_llm_config = default_config["llmConfig"]
+    
+    # Git Token 也始终来自系统默认（.env），不再允许用户覆盖
     merged_other_config = {**default_config["otherConfig"], **user_other_config}
+    # 强制覆盖为默认配置中的 Token（已脱敏）
+    merged_other_config["githubToken"] = default_config["otherConfig"]["githubToken"]
+    merged_other_config["gitlabToken"] = default_config["otherConfig"]["gitlabToken"]
+    merged_other_config["giteaToken"] = default_config["otherConfig"]["giteaToken"]
     
     return UserConfigResponse(
         id=config.id,
@@ -216,6 +226,14 @@ async def update_my_config(
     # 准备要保存的配置数据（加密敏感字段）
     llm_data = config_in.llmConfig.dict(exclude_none=True) if config_in.llmConfig else {}
     other_data = config_in.otherConfig.dict(exclude_none=True) if config_in.otherConfig else {}
+    
+    # 如果传回来的是掩码，说明没有修改，不需要更新
+    if 'githubToken' in other_data and '***' in str(other_data['githubToken']):
+        del other_data['githubToken']
+    if 'gitlabToken' in other_data and '***' in str(other_data['gitlabToken']):
+        del other_data['gitlabToken']
+    if 'giteaToken' in other_data and '***' in str(other_data['giteaToken']):
+        del other_data['giteaToken']
     
     # 加密敏感字段
     llm_data_encrypted = encrypt_config(llm_data, SENSITIVE_LLM_FIELDS)

@@ -424,15 +424,8 @@ async def get_project_files(
 
         if config and config.other_config:
             other_config = json.loads(config.other_config)
-            for field in SENSITIVE_OTHER_FIELDS:
-                if field in other_config and other_config[field]:
-                    decrypted_val = decrypt_sensitive_data(other_config[field])
-                    if field == 'githubToken':
-                        github_token = decrypted_val
-                    elif field == 'gitlabToken':
-                        gitlab_token = decrypted_val
-                    elif field == 'sshPrivateKey':
-                        ssh_private_key = decrypted_val
+            if 'sshPrivateKey' in other_config and other_config['sshPrivateKey']:
+                ssh_private_key = decrypt_sensitive_data(other_config['sshPrivateKey'])
 
         # 检查是否为SSH URL
         is_ssh_url = GitSSHOperations.is_ssh_url(project.repository_url)
@@ -716,20 +709,7 @@ async def get_project_branches(
     gitea_token = settings.GITEA_TOKEN
     gitlab_token = settings.GITLAB_TOKEN
 
-    SENSITIVE_OTHER_FIELDS = ['githubToken', 'gitlabToken', 'giteaToken']
-    
-    if config and config.other_config:
-        import json
-        other_config = json.loads(config.other_config)
-        for field in SENSITIVE_OTHER_FIELDS:
-            if field in other_config and other_config[field]:
-                decrypted_val = decrypt_sensitive_data(other_config[field])
-                if field == 'githubToken':
-                    github_token = decrypted_val
-                elif field == 'gitlabToken':
-                    gitlab_token = decrypted_val
-                elif field == 'giteaToken':
-                    gitea_token = decrypted_val
+    # Git Token 始终来自 .env，不再从 config 中获取
     
     repo_type = project.repository_type or "other"
     
@@ -765,11 +745,13 @@ async def get_project_branches(
         return {"branches": branches, "default_branch": default_branch}
     
     except Exception as e:
+        import traceback
         error_msg = str(e)
         print(f"[Branch] 获取分支列表失败: {error_msg}")
-        # 返回默认分支作为后备
+        print(traceback.format_exc())
+        # 返回默认分支作为后备，并包含错误详情
         return {
             "branches": [project.default_branch or "main"],
             "default_branch": project.default_branch or "main",
-            "error": str(e)
+            "error": error_msg
         }
