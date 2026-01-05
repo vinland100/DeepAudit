@@ -18,17 +18,14 @@ import {
     Trash2,
     ChevronLeft,
     ChevronRight,
-    Github,
     UserCircle,
     Shield,
     MessageSquare,
     Bot,
-    ExternalLink,
     GitGraph,
 } from "lucide-react";
 import AppLogo from "@/components/common/AppLogo";
 import routes from "@/app/routes";
-import { version } from "../../../package.json";
 
 // Icon mapping for routes with consistent sizing
 const routeIcons: Record<string, React.ReactNode> = {
@@ -255,28 +252,6 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
                             )}
                         </Link>
 
-                        {/* GitHub Link with enhanced styling */}
-                        <a
-                            href="https://github.com/lintsinghua/DeepAudit"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-300 group border border-transparent hover:bg-card/60 hover:border-border/50"
-                            style={{ color: 'var(--cyber-text-muted)' }}
-                            title={collapsed ? "GitHub" : undefined}
-                        >
-                            <span className="p-1.5 rounded-md transition-all duration-300 group-hover:bg-muted/50">
-                                <Github className="w-5 h-5 flex-shrink-0" />
-                            </span>
-                            {!collapsed && (
-                                <div className="flex-1 flex items-center justify-between">
-                                    <div className="flex flex-col">
-                                        <span className="font-mono text-sm">GitHub</span>
-                                        <span className="text-xs font-mono text-muted-foreground/70">v{version}</span>
-                                    </div>
-                                    <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
-                                </div>
-                            )}
-                        </a>
 
                         {/* System Status with enhanced styling */}
                         {!collapsed && (

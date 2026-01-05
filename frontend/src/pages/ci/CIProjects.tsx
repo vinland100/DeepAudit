@@ -87,7 +87,7 @@ const CIProjects: React.FC = () => {
                             <CardHeader>
                                 <div className="flex justify-between items-start">
                                     <div className="space-y-1">
-                                        <CardTitle className="text-xl break-all line-clamp-1" title={project.name}>
+                                        <CardTitle className="text-xl break-all line-clamp-1 normal-case" title={project.name}>
                                             {project.name}
                                         </CardTitle>
                                         <CardDescription className="line-clamp-2 min-h-[2.5em]">
