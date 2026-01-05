@@ -66,7 +66,7 @@ services:
       redis:
         condition: service_healthy
     # 开发模式：启用 --reload 热重载
-    command: sh -c ".venv/bin/alembic upgrade head && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: sh -c ".venv/bin/alembic upgrade head && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000"
     networks:
       - deepaudit-network
 
