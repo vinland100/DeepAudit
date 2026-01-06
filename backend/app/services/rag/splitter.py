@@ -453,6 +453,27 @@ class CodeSplitter:
             (r"system\s*\(", "system_call"),
             (r"send\s*\(", "dynamic_method_call"),
         ],
+        "rust": [
+            (r"\bunsafe\b", "unsafe_code"),
+            (r"Command::new", "process_execution"),
+            (r"File::create", "file_creation"),
+            (r"File::open", "file_access"),
+        ],
+        "swift": [
+            (r"Process\(\)", "process_start"),
+            (r"try!", "force_try"),
+            (r"eval\s*\(", "eval"),
+        ],
+        "kotlin": [
+            (r"Runtime\.getRuntime\(\)\.exec", "runtime_exec"),
+            (r"ProcessBuilder", "process_builder"),
+            (r"password\s*=", "password_assign"),
+        ],
+        "sql": [
+            (r"DROP\s+TABLE", "drop_table"),
+            (r"DELETE\s+FROM", "delete_records"),
+            (r"GRANT\s+ALL", "grant_privileges"),
+        ],
     }
     
     def __init__(
