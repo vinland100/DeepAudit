@@ -39,6 +39,7 @@ services:
     volumes:
       # - ./backend/app:/app/app:ro  # 挂载代码目录，修改后自动生效
       - backend_uploads:/app/uploads
+      - chroma_data:/app/data/vector_db
       - /var/run/docker.sock:/var/run/docker.sock # 沙箱执行必须
     ports:
       - "8000:8000"
@@ -49,9 +50,9 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - AGENT_ENABLED=true
       - SANDBOX_ENABLED=true
-      - SANDBOX_IMAGE=deepaudit/sandbox:latest  # 使用本地构建的沙箱镜像
+      - SANDBOX_IMAGE=deepaudit/sandbox:latest # 使用本地构建的沙箱镜像
       # 指定 embedding 服务地址
-      - EMBEDDING_BASE_URL=http://host.docker.internal:8003/v1 
+      - EMBEDDING_BASE_URL=http://host.docker.internal:8003/v1
       # Gitea 配置
       - GITEA_HOST_URL=http://sl.vrgon.com:3000
       - GITEA_BOT_TOKEN=379a049b8d78965fdff474fc8676bca7e9c70248
@@ -71,7 +72,7 @@ services:
     restart: unless-stopped
     volumes:
       # - ./frontend/dist:/usr/share/nginx/html:ro  # 挂载构建产物，本地 pnpm build 后自动生效
-      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro  # 挂载 nginx 配置
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro # 挂载 nginx 配置
     ports:
       - "83:80" # Nginx 监听 80 端口
     environment:
@@ -115,9 +116,10 @@ networks:
   deepaudit-network:
     driver: bridge
     driver_opts:
-      com.docker.network.bridge.name: br-deepaudit  # 指定宿主机网卡名称
+      com.docker.network.bridge.name: br-deepaudit # 指定宿主机网卡名称
 
 volumes:
   postgres_data:
   backend_uploads:
+  chroma_data:
   redis_data:

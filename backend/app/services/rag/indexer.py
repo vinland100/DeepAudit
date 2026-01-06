@@ -462,9 +462,11 @@ class ChromaVectorStore(VectorStore):
 
         try:
             # 获取所有文档的元数据
+            # 🔥 FIX: Chroma 默认 limit 是 10，这里设置为一个较大的值以获取完整列表
             result = await asyncio.to_thread(
                 self._collection.get,
                 include=["metadatas"],
+                limit=10000,
             )
 
             file_paths = set()
@@ -483,9 +485,11 @@ class ChromaVectorStore(VectorStore):
             return {}
 
         try:
+            # 🔥 FIX: Chroma 默认 limit 是 10，这里设置为一个较大的值以获取完整列表
             result = await asyncio.to_thread(
                 self._collection.get,
                 include=["metadatas"],
+                limit=10000,
             )
 
             file_hashes = {}
@@ -901,9 +905,13 @@ class CodeIndexer:
 
         # 确定实际的更新模式
         if update_mode == IndexUpdateMode.SMART:
-            if needs_rebuild:
+            # 🔥 FIX: 如果是新 collection，即使没有配置变更，也要用 FULL 模式
+            is_new = hasattr(self.vector_store, 'is_new_collection') and self.vector_store.is_new_collection
+            
+            if needs_rebuild or is_new:
                 actual_mode = IndexUpdateMode.FULL
-                logger.info(f"🔄 智能模式: 选择全量重建 (原因: {rebuild_reason})")
+                reason = rebuild_reason if needs_rebuild else "新集合"
+                logger.info(f"🔄 智能模式: 选择全量重建 (原因: {reason})")
             else:
                 actual_mode = IndexUpdateMode.INCREMENTAL
                 logger.info("📝 智能模式: 选择增量更新")
