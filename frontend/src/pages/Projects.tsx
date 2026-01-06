@@ -298,7 +298,7 @@ export default function Projects() {
       description: project.description || "",
       source_type: project.source_type || "repository",
       repository_url: project.repository_url || "",
-      repository_type: project.repository_type || "github",
+      repository_type: project.repository_type || "gitea",
       default_branch: project.default_branch || "main",
       programming_languages: project.programming_languages ? JSON.parse(project.programming_languages) : []
     });
@@ -518,8 +518,8 @@ export default function Projects() {
                       onChange={(e) => setCreateForm({ ...createForm, repository_url: e.target.value })}
                       placeholder={
                         createForm.repository_type === 'other'
-                          ? "git@github.com:user/repo.git"
-                          : "https://github.com/user/repo"
+                          ? "git@gitea.com:user/repo.git"
+                          : "https://gitea.com/user/repo"
                       }
                       className="cyber-input"
                     />
@@ -1019,8 +1019,8 @@ export default function Projects() {
                     onChange={(e) => setEditForm({ ...editForm, repository_url: e.target.value })}
                     placeholder={
                       editForm.repository_type === 'other'
-                        ? "git@github.com:user/repo.git"
-                        : "https://github.com/user/repo"
+                        ? "git@gitea.com:user/repo.git"
+                        : "https://gitea.com/user/repo"
                     }
                     className="cyber-input mt-1"
                   />

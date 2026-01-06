@@ -35,10 +35,12 @@ export const REPOSITORY_PLATFORMS: Array<{
   value: RepositoryPlatform;
   label: string;
   icon?: string;
-}> = Object.entries(REPOSITORY_PLATFORM_LABELS).map(([value, label]) => ({
-  value: value as RepositoryPlatform,
-  label
-}));
+}> = [
+    { value: 'gitea', label: 'Gitea' },
+    { value: 'github', label: 'GitHub' },
+    { value: 'gitlab', label: 'GitLab' },
+    { value: 'other', label: '其他' },
+  ];
 
 // 项目来源类型的颜色配置
 export const SOURCE_TYPE_COLORS: Record<ProjectSourceType, {

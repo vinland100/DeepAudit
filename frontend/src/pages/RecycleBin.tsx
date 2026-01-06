@@ -99,6 +99,7 @@ export default function RecycleBin() {
     switch (type) {
       case 'github': return '🐙';
       case 'gitlab': return '🦊';
+      case 'gitea': return '🍵';
       default: return '📁';
     }
   };

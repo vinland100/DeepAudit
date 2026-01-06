@@ -56,7 +56,7 @@ export default function ProjectDetail() {
     description: "",
     source_type: "repository",
     repository_url: "",
-    repository_type: "github",
+    repository_type: "gitea",
     default_branch: "main",
     programming_languages: []
   });
@@ -97,7 +97,7 @@ export default function ProjectDetail() {
       description: project.description || "",
       source_type: project.source_type || "repository",
       repository_url: project.repository_url || "",
-      repository_type: project.repository_type || "github",
+      repository_type: project.repository_type || "gitea",
       default_branch: project.default_branch || "main",
       programming_languages: project.programming_languages ? JSON.parse(project.programming_languages) : []
     });
@@ -763,7 +763,7 @@ export default function ProjectDetail() {
                       id="edit-repo-url"
                       value={editForm.repository_url}
                       onChange={(e) => setEditForm({ ...editForm, repository_url: e.target.value })}
-                      placeholder="https://github.com/username/repo"
+                      placeholder="https://gitea.com/username/repo"
                       className="cyber-input mt-1"
                     />
                   </div>
