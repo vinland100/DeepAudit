@@ -37,7 +37,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      # - ./backend/app:/app/app:ro  # 挂载代码目录，修改后自动生效
+      - ./backend/app:/app/app:ro  # 挂载代码目录，修改后自动生效
       - backend_uploads:/app/uploads
       - chroma_data:/app/data/vector_db
       - /var/run/docker.sock:/var/run/docker.sock # 沙箱执行必须
@@ -52,7 +52,10 @@ services:
       - SANDBOX_ENABLED=true
       - SANDBOX_IMAGE=deepaudit/sandbox:latest # 使用本地构建的沙箱镜像
       # 指定 embedding 服务地址
-      - EMBEDDING_BASE_URL=http://host.docker.internal:8003/v1
+      - EMBEDDING_PROVIDER=openai
+      - EMBEDDING_MODEL=text-embedding-v4
+      - EMBEDDING_DIMENSION=1024
+      - EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
       # Gitea 配置
       - GITEA_HOST_URL=http://sl.vrgon.com:3000
       - GITEA_BOT_TOKEN=379a049b8d78965fdff474fc8676bca7e9c70248
@@ -62,7 +65,7 @@ services:
       redis:
         condition: service_healthy
     # 开发模式：启用 --reload 热重载
-    command: sh -c ".venv/bin/alembic upgrade head && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c ".venv/bin/alembic upgrade head && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     networks:
       - deepaudit-network
 

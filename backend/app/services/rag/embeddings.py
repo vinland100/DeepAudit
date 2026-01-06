@@ -636,7 +636,14 @@ class EmbeddingService:
             base_url=self.base_url,
         )
 
-        logger.info(f"Embedding service initialized with {self.provider}/{self.model}")
+        # 🔥 控制并发请求数 (RPS 限制)
+        self._semaphore = asyncio.Semaphore(30)
+        
+        # 🔥 设置默认批次大小 (对于 remote 模型，用户要求为 10)
+        is_remote = self.provider.lower() in ["openai", "qwen", "azure", "cohere", "jina", "huggingface"]
+        self.batch_size = 10 if is_remote else 100
+
+        logger.info(f"Embedding service initialized with {self.provider}/{self.model} (Batch size: {self.batch_size})")
     
     def _create_provider(
         self,
@@ -755,55 +762,75 @@ class EmbeddingService:
 
         # 批量处理未缓存的文本
         if uncached_texts:
-            total_batches = (len(uncached_texts) + batch_size - 1) // batch_size
-            processed_batches = 0
+            tasks = []
+            current_batch_size = batch_size or self.batch_size
 
-            for i in range(0, len(uncached_texts), batch_size):
-                # 🔥 检查是否应该取消
-                if cancel_check and cancel_check():
-                    logger.info(f"[Embedding] Cancelled at batch {processed_batches + 1}/{total_batches}")
-                    raise asyncio.CancelledError("嵌入操作已取消")
+            for i in range(0, len(uncached_texts), current_batch_size):
+                batch = uncached_texts[i:i + current_batch_size]
+                batch_indices = uncached_indices[i:i + current_batch_size]
+                tasks.append(self._process_batch_with_retry(batch, batch_indices, cancel_check))
 
-                batch = uncached_texts[i:i + batch_size]
-                batch_indices = uncached_indices[i:i + batch_size]
+            # 🔥 并发执行所有批次任务
+            all_batch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                try:
-                    results = await self._provider.embed_texts(batch)
-
-                    for idx, result in zip(batch_indices, results):
-                        embeddings[idx] = result.embedding
-
-                        # 存入缓存
-                        if self.cache_enabled:
-                            cache_key = self._cache_key(texts[idx])
-                            self._cache[cache_key] = result.embedding
-
-                except asyncio.CancelledError:
-                    # 🔥 重新抛出取消异常
-                    raise
-                except Exception as e:
-                    logger.error(f"Batch embedding error: {e}")
-                    # 对失败的使用零向量
+            for i, result_list in enumerate(all_batch_results):
+                batch_indices = uncached_indices[i * current_batch_size : (i + 1) * current_batch_size]
+                
+                if isinstance(result_list, Exception):
+                    logger.error(f"Batch processing failed: {result_list}")
+                    # 失败批次使用零向量
                     for idx in batch_indices:
                         if embeddings[idx] is None:
                             embeddings[idx] = [0.0] * self.dimension
+                    continue
 
-                processed_batches += 1
+                for idx, result in zip(batch_indices, result_list):
+                    embeddings[idx] = result.embedding
+                    # 存入缓存
+                    if self.cache_enabled:
+                        cache_key = self._cache_key(texts[idx])
+                        self._cache[cache_key] = result.embedding
 
                 # 🔥 调用进度回调
                 if progress_callback:
-                    processed_count = min(i + batch_size, len(uncached_texts))
+                    processed_count = min((i + 1) * current_batch_size, len(uncached_texts))
                     try:
                         progress_callback(processed_count, len(uncached_texts))
                     except Exception as e:
                         logger.warning(f"Progress callback error: {e}")
 
-                # 添加小延迟避免限流
-                if self.provider not in ["ollama"]:    
-                    await asyncio.sleep(0.1)  # 本地不延时
-
         # 确保没有 None
         return [e if e is not None else [0.0] * self.dimension for e in embeddings]
+
+    async def _process_batch_with_retry(
+        self, 
+        batch: List[str], 
+        indices: List[int], 
+        cancel_check: Optional[callable] = None,
+        max_retries: int = 3
+    ) -> List[EmbeddingResult]:
+        """带重试机制的单批次处理"""
+        for attempt in range(max_retries):
+            if cancel_check and cancel_check():
+                raise asyncio.CancelledError("嵌入操作已取消")
+
+            async with self._semaphore:
+                try:
+                    return await self._provider.embed_texts(batch)
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 429 and attempt < max_retries - 1:
+                        # 429 限流，指数级退避
+                        wait_time = (2 ** attempt) + 1
+                        logger.warning(f"Rate limited (429), retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    raise
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1)
+                        continue
+                    raise
+        return []
     
     def clear_cache(self):
         """清空缓存"""

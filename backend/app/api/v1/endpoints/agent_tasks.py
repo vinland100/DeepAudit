@@ -788,21 +788,9 @@ async def _initialize_tools(
         last_embedding_progress = [0]  # 使用列表以便在闭包中修改
         embedding_total = [0]  # 记录总数
 
-        # 🔥 嵌入进度回调函数（同步，但会调度异步任务）
+        # 每个文件索引时不再发送单独的嵌入进度日志，避免日志爆炸
         def on_embedding_progress(processed: int, total: int):
-            embedding_total[0] = total
-            # 每处理 50 个或完成时更新
-            if processed - last_embedding_progress[0] >= 50 or processed == total:
-                last_embedding_progress[0] = processed
-                percentage = (processed / total * 100) if total > 0 else 0
-                msg = f"🔢 嵌入进度: {processed}/{total} ({percentage:.0f}%)"
-                logger.info(msg)
-                # 使用 asyncio.create_task 调度异步 emit
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(emit(msg))
-                except Exception as e:
-                    logger.warning(f"Failed to emit embedding progress: {e}")
+            pass 
 
         # 🔥 创建取消检查函数，用于在嵌入批处理中检查取消状态
         def check_cancelled() -> bool:
@@ -822,8 +810,8 @@ async def _initialize_tools(
                 raise asyncio.CancelledError("任务已取消")
 
             index_progress = progress
-            # 每处理 10 个文件或有重要变化时发送进度更新
-            if progress.processed_files - last_progress_update >= 10 or progress.processed_files == progress.total_files:
+            # 🔥 逐个文件更新进度 (满足用户需求)
+            if progress.processed_files - last_progress_update >= 1 or progress.processed_files == progress.total_files:
                 if progress.total_files > 0:
                     await emit(
                         f"📝 索引进度: {progress.processed_files}/{progress.total_files} 文件 "

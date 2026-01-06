@@ -949,65 +949,58 @@ class CodeIndexer:
         logger.info(f"📁 发现 {len(files)} 个文件待索引")
         yield progress
 
-        all_chunks: List[CodeChunk] = []
+        semaphore = asyncio.Semaphore(20)  # 控制文件处理并发
         file_hashes: Dict[str, str] = {}
 
-        # 分块处理文件
-        for file_path in files:
-            progress.current_file = file_path
+        async def process_file(file_path: str):
+            async with semaphore:
+                try:
+                    relative_path = os.path.relpath(file_path, directory)
+                    progress.current_file = relative_path
 
-            try:
-                relative_path = os.path.relpath(file_path, directory)
+                    # 异步读取文件
+                    content = await asyncio.to_thread(self._read_file_sync, file_path)
+                    if not content.strip():
+                        progress.processed_files += 1
+                        progress.skipped_files += 1
+                        return
 
-                # 异步读取文件，避免阻塞事件循环
-                content = await asyncio.to_thread(
-                    self._read_file_sync, file_path
-                )
+                    # 计算文件 hash
+                    file_hash = hashlib.md5(content.encode()).hexdigest()
+                    file_hashes[relative_path] = file_hash
 
-                if not content.strip():
+                    # 异步分块
+                    if len(content) > 500000:
+                        content = content[:500000]
+                    chunks = await self.splitter.split_file_async(content, relative_path)
+
+                    for chunk in chunks:
+                        chunk.metadata["file_hash"] = file_hash
+
+                    # 立即索引该文件的代码块 (实现逐文件更新进度)
+                    if chunks:
+                        await self._index_chunks(chunks, progress, use_upsert=False, embedding_progress_callback=embedding_progress_callback, cancel_check=cancel_check)
+                        progress.total_chunks += len(chunks)
+                        progress.indexed_chunks += len(chunks)
+
                     progress.processed_files += 1
-                    progress.skipped_files += 1
-                    continue
+                    progress.added_files += 1
+                    
+                    if progress_callback:
+                        progress_callback(progress)
+                    
+                except Exception as e:
+                    logger.warning(f"处理文件失败 {file_path}: {e}")
+                    progress.errors.append(f"{file_path}: {str(e)}")
+                    progress.processed_files += 1
 
-                # 计算文件 hash
-                file_hash = hashlib.md5(content.encode()).hexdigest()
-                file_hashes[relative_path] = file_hash
-
-                # 限制文件大小
-                if len(content) > 500000:
-                    content = content[:500000]
-
-                # 异步分块，避免 Tree-sitter 解析阻塞事件循环
-                chunks = await self.splitter.split_file_async(content, relative_path)
-
-                # 为每个 chunk 添加 file_hash
-                for chunk in chunks:
-                    chunk.metadata["file_hash"] = file_hash
-
-                all_chunks.extend(chunks)
-
-                progress.processed_files += 1
-                progress.added_files += 1
-                progress.total_chunks = len(all_chunks)
-
-                if progress_callback:
-                    progress_callback(progress)
-                yield progress
-
-            except Exception as e:
-                logger.warning(f"处理文件失败 {file_path}: {e}")
-                progress.errors.append(f"{file_path}: {str(e)}")
-                progress.processed_files += 1
-
-        logger.info(f"📝 创建了 {len(all_chunks)} 个代码块")
-
-        # 批量嵌入和索引
-        if all_chunks:
-            # 🔥 发送嵌入向量生成状态
-            progress.status_message = f"🔢 生成 {len(all_chunks)} 个代码块的嵌入向量..."
+        # 执行全量索引
+        tasks = [process_file(f) for f in files]
+        
+        # 🔥 使用 as_completed 实现真正的逐文件进度更新
+        for task in asyncio.as_completed(tasks):
+            await task
             yield progress
-
-            await self._index_chunks(all_chunks, progress, use_upsert=False, embedding_progress_callback=embedding_progress_callback, cancel_check=cancel_check)
 
         # 更新 collection 元数据
         project_hash = hashlib.md5(json.dumps(sorted(file_hashes.items())).encode()).hexdigest()
@@ -1016,8 +1009,7 @@ class CodeIndexer:
             "file_count": len(file_hashes),
         })
 
-        progress.indexed_chunks = len(all_chunks)
-        logger.info(f"✅ 全量索引完成: {progress.added_files} 个文件, {len(all_chunks)} 个代码块")
+        logger.info(f"✅ 全量索引完成: {progress.added_files} 个文件, {progress.indexed_chunks} 个代码块")
         yield progress
 
     async def _incremental_index(
@@ -1091,71 +1083,73 @@ class CodeIndexer:
                 progress_callback(progress)
             yield progress
 
-        # 处理新增和更新的文件
-        files_to_process = files_to_add | files_to_update
-        all_chunks: List[CodeChunk] = []
+        semaphore = asyncio.Semaphore(20)
         file_hashes: Dict[str, str] = dict(indexed_file_hashes)
 
-        for relative_path in files_to_process:
-            file_path = current_file_map[relative_path]
-            progress.current_file = relative_path
-            is_update = relative_path in files_to_update
+        async def process_incremental_file(relative_path: str):
+            async with semaphore:
+                file_path = current_file_map[relative_path]
+                progress.current_file = relative_path
+                is_update = relative_path in files_to_update
 
-            try:
-                # 异步读取文件，避免阻塞事件循环
-                content = await asyncio.to_thread(
-                    self._read_file_sync, file_path
-                )
+                try:
+                    # 异步读取文件
+                    content = await asyncio.to_thread(self._read_file_sync, file_path)
 
-                if not content.strip():
+                    if not content.strip():
+                        progress.processed_files += 1
+                        progress.skipped_files += 1
+                        return
+
+                    # 如果是更新，先删除旧的
+                    if is_update:
+                        await self.vector_store.delete_by_file_path(relative_path)
+
+                    # 计算文件 hash
+                    file_hash = hashlib.md5(content.encode()).hexdigest()
+                    file_hashes[relative_path] = file_hash
+
+                    # 限制文件大小
+                    if len(content) > 500000:
+                        content = content[:500000]
+
+                    # 异步分块
+                    chunks = await self.splitter.split_file_async(content, relative_path)
+
+                    # 为每个 chunk 添加 file_hash
+                    for chunk in chunks:
+                        chunk.metadata["file_hash"] = file_hash
+
+                    # 立即索引该文件
+                    if chunks:
+                        await self._index_chunks(chunks, progress, use_upsert=True, embedding_progress_callback=embedding_progress_callback, cancel_check=cancel_check)
+                        progress.total_chunks += len(chunks)
+                        progress.indexed_chunks += len(chunks)
+
                     progress.processed_files += 1
-                    progress.skipped_files += 1
-                    continue
+                    if is_update:
+                        progress.updated_files += 1
+                    else:
+                        progress.added_files += 1
 
-                # 如果是更新，先删除旧的
-                if is_update:
-                    await self.vector_store.delete_by_file_path(relative_path)
+                    if progress_callback:
+                        progress_callback(progress)
 
-                # 计算文件 hash
-                file_hash = hashlib.md5(content.encode()).hexdigest()
-                file_hashes[relative_path] = file_hash
+                except Exception as e:
+                    logger.warning(f"处理文件失败 {file_path}: {e}")
+                    progress.errors.append(f"{file_path}: {str(e)}")
+                    progress.processed_files += 1
 
-                # 限制文件大小
-                if len(content) > 500000:
-                    content = content[:500000]
-
-                # 异步分块，避免 Tree-sitter 解析阻塞事件循环
-                chunks = await self.splitter.split_file_async(content, relative_path)
-
-                # 为每个 chunk 添加 file_hash
-                for chunk in chunks:
-                    chunk.metadata["file_hash"] = file_hash
-
-                all_chunks.extend(chunks)
-
-                progress.processed_files += 1
-                if is_update:
-                    progress.updated_files += 1
-                else:
-                    progress.added_files += 1
-                progress.total_chunks += len(chunks)
-
-                if progress_callback:
-                    progress_callback(progress)
-                yield progress
-
-            except Exception as e:
-                logger.warning(f"处理文件失败 {file_path}: {e}")
-                progress.errors.append(f"{file_path}: {str(e)}")
-                progress.processed_files += 1
-
-        # 批量嵌入和索引新的代码块
-        if all_chunks:
-            # 🔥 发送嵌入向量生成状态
-            progress.status_message = f"🔢 生成 {len(all_chunks)} 个代码块的嵌入向量..."
+        # 处理新增和更新的文件
+        files_to_process = files_to_add | files_to_update
+        
+        # 执行增量索引
+        tasks = [process_incremental_file(p) for p in files_to_process]
+        
+        # 🔥 使用 as_completed 实现真正的逐文件进度更新
+        for task in asyncio.as_completed(tasks):
+            await task
             yield progress
-
-            await self._index_chunks(all_chunks, progress, use_upsert=True, embedding_progress_callback=embedding_progress_callback, cancel_check=cancel_check)
 
         # 更新 collection 元数据
         # 移除已删除文件的 hash
@@ -1168,7 +1162,6 @@ class CodeIndexer:
             "file_count": len(file_hashes),
         })
 
-        progress.indexed_chunks = len(all_chunks)
         logger.info(
             f"✅ 增量索引完成: 新增 {progress.added_files}, "
             f"更新 {progress.updated_files}, 删除 {progress.deleted_files}"
