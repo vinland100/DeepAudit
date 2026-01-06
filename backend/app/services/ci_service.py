@@ -373,9 +373,13 @@ class CIService:
                 directory=repo_path, 
                 update_mode=update_mode
             ):
-                # Log progress occasionally
-                if progress.total_files > 0 and progress.processed_files % 20 == 0:
-                    logger.info(f"[{project.name}] Indexing: {progress.processed_files}/{progress.total_files}")
+                # Log progress
+                # For small projects, log every file; for large ones, log every 20 files
+                should_log = (progress.total_files <= 100) or (progress.processed_files % 20 == 0) or (progress.processed_files == progress.total_files)
+                
+                if progress.total_files > 0 and should_log:
+                    current_file = progress.current_file or "..."
+                    logger.info(f"[{project.name}] Indexing ({progress.processed_files}/{progress.total_files}): {current_file}")
             
             logger.info(f"✅ Project {project.name} indexing complete.")
             return repo_path

@@ -813,9 +813,10 @@ async def _initialize_tools(
             # 🔥 逐个文件更新进度 (满足用户需求)
             if progress.processed_files - last_progress_update >= 1 or progress.processed_files == progress.total_files:
                 if progress.total_files > 0:
+                    current_file = progress.current_file or "..."
                     await emit(
                         f"📝 索引进度: {progress.processed_files}/{progress.total_files} 文件 "
-                        f"({progress.progress_percentage:.0f}%)"
+                        f"({progress.progress_percentage:.0f}%): {current_file}"
                     )
                 last_progress_update = progress.processed_files
 

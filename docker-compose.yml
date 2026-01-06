@@ -40,6 +40,8 @@ services:
       - ./backend/app:/app/app:ro # 挂载代码目录，修改后自动生效
       - backend_uploads:/app/uploads
       - chroma_data:/app/data/vector_db
+      - ci_workspace:/app/data/ci_workspace
+      - ci_vectordb:/app/data/ci_vectordb
       - /var/run/docker.sock:/var/run/docker.sock # 沙箱执行必须
     ports:
       - "8000:8000"
@@ -125,4 +127,6 @@ volumes:
   postgres_data:
   backend_uploads:
   chroma_data:
+  ci_workspace:
+  ci_vectordb:
   redis_data:
