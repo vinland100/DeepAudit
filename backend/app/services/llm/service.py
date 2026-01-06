@@ -358,8 +358,21 @@ Please analyze the following code:
         except Exception as e:
             logger.error(f"LLM Analysis failed: {e}", exc_info=True)
             logger.error(f"Provider: {self.config.provider.value}, Model: {self.config.model}")
-            # 重新抛出异常，让调用者处理
-            raise
+            
+            # 转换为更具描述性的错误消息
+            error_str = str(e)
+            if "401" in error_str:
+                error_msg = f"LLM 认证失败 (401): 请检查 {self.config.provider.value} API Key 是否正确"
+            elif "404" in error_str:
+                error_msg = f"LLM 模型不存在 (404): 请检查模型名称 '{self.config.model}' 是否正确"
+            elif "429" in error_str:
+                error_msg = f"LLM 额度不足或频率限制 (429): 请检查账户余额或稍后重试"
+            elif "timeout" in error_str.lower():
+                error_msg = f"LLM 请求超时: 请检查网络连接或增加超时时间"
+            else:
+                error_msg = f"LLM 分析失败: {error_str[:200]}"
+            
+            raise Exception(error_msg)
 
     async def chat_completion(
         self,

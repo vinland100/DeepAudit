@@ -296,10 +296,11 @@ async def _execute_agent_task(task_id: str):
             gitea_token = settings.GITEA_TOKEN
 
             # 解密SSH私钥
+            user_other_config = user_config.get('otherConfig', {}) if user_config else {}
             ssh_private_key = None
-            if 'sshPrivateKey' in other_config:
+            if 'sshPrivateKey' in user_other_config:
                 try:
-                    encrypted_key = other_config['sshPrivateKey']
+                    encrypted_key = user_other_config['sshPrivateKey']
                     ssh_private_key = decrypt_sensitive_data(encrypted_key)
                     logger.info("成功解密SSH私钥")
                 except Exception as e:
@@ -2564,6 +2565,39 @@ async def _get_project_root(
                             break
                         else:
                             last_error = result.stderr
+                            # 🔥 如果带认证克隆失败（401），尝试不带认证再试一次（针对公开库）
+                            if ("401" in last_error or "Authentication failed" in last_error or "fatal: could not read Username" in last_error) and auth_url != repo_url:
+                                logger.info(f"⚠️ 带认证克隆失败 (401)，尝试公开 URL 进行匿名克隆: {branch}")
+                                await emit(f"⚠️ 认证失败，尝试匿名访问分支 {branch}...", "warning")
+                                try:
+                                    retry_task = asyncio.create_task(asyncio.to_thread(
+                                        subprocess.run,
+                                        ["git", "clone", "--depth", "1", "--branch", branch, repo_url, base_path],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=120,
+                                    ))
+                                    while not retry_task.done():
+                                        check_cancelled()
+                                        try:
+                                            result = await asyncio.wait_for(asyncio.shield(retry_task), timeout=1.0)
+                                            break
+                                        except asyncio.TimeoutError:
+                                            continue
+                                    
+                                    if retry_task.done():
+                                        result = retry_task.result()
+
+                                    if result.returncode == 0:
+                                        logger.info(f"✅ 匿名 Git 克隆成功 (分支: {branch})")
+                                        await emit(f"✅ 仓库获取成功 (匿名克隆, 分支: {branch})")
+                                        download_success = True
+                                        break
+                                    else:
+                                        last_error = result.stderr
+                                except Exception as e:
+                                    logger.warning(f"匿名克隆尝试失败: {e}")
+
                             logger.warning(f"克隆失败 (分支 {branch}): {last_error[:200]}")
                             await emit(f"⚠️ 分支 {branch} 克隆失败...", "warning")
                 except subprocess.TimeoutExpired:
@@ -2639,6 +2673,37 @@ async def _get_project_root(
                             download_success = True
                         else:
                             last_error = result.stderr
+                            # 🔥 如果带认证克隆失败（401），尝试不带认证再试一次（针对公开库）
+                            if ("401" in last_error or "Authentication failed" in last_error or "fatal: could not read Username" in last_error) and auth_url != repo_url:
+                                logger.info(f"⚠️ 带认证克隆失败 (401)，尝试公开 URL 进行匿名克隆 (默认分支)")
+                                await emit(f"⚠️ 认证失败，尝试匿名访问默认分支...", "warning")
+                                try:
+                                    retry_task = asyncio.create_task(asyncio.to_thread(
+                                        subprocess.run,
+                                        ["git", "clone", "--depth", "1", repo_url, base_path],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=120,
+                                    ))
+                                    while not retry_task.done():
+                                        check_cancelled()
+                                        try:
+                                            result = await asyncio.wait_for(asyncio.shield(retry_task), timeout=1.0)
+                                            break
+                                        except asyncio.TimeoutError:
+                                            continue
+                                    
+                                    if retry_task.done():
+                                        result = retry_task.result()
+
+                                    if result.returncode == 0:
+                                        logger.info(f"✅ 匿名 Git 克隆成功 (默认分支)")
+                                        await emit(f"✅ 仓库获取成功 (匿名克隆, 默认分支)")
+                                        download_success = True
+                                    else:
+                                        last_error = result.stderr
+                                except Exception as e:
+                                    logger.warning(f"匿名克隆尝试失败: {e}")
                 except subprocess.TimeoutExpired:
                     last_error = "克隆超时"
                 except asyncio.CancelledError:

@@ -106,21 +106,38 @@ async def github_api(url: str, token: str = None) -> Any:
     """调用GitHub API"""
     headers = {"Accept": "application/vnd.github+json"}
     t = token or settings.GITHUB_TOKEN
-    if t:
-        headers["Authorization"] = f"Bearer {t}"
     
     async with httpx.AsyncClient(timeout=30) as client:
+        # First try with token if available
+        if t:
+            headers["Authorization"] = f"Bearer {t}"
+            try:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    return response.json()
+                if response.status_code != 401:
+                    if response.status_code == 403:
+                        raise Exception("GitHub API 403：请配置 GITHUB_TOKEN 或确认仓库权限/频率限制")
+                    raise Exception(f"GitHub API {response.status_code}: {url}")
+                # If 401, fall through to retry without token
+                print(f"[API] GitHub API 401 (Unauthorized) with token, retrying without token for: {url}")
+            except Exception as e:
+                if "GitHub API 401" not in str(e) and "401" not in str(e):
+                    raise
+        
+        # Try without token
+        if "Authorization" in headers:
+            del headers["Authorization"]
+        
         try:
             response = await client.get(url, headers=headers)
+            if response.status_code == 200:
+                return response.json()
             if response.status_code == 403:
                 raise Exception("GitHub API 403：请配置 GITHUB_TOKEN 或确认仓库权限/频率限制")
-            if response.status_code != 200:
-                raise Exception(f"GitHub API {response.status_code}: {url}")
-            
-            data = response.json()
-            if not isinstance(data, (list, dict)):
-                print(f"[API] 警告: GitHub API 返回了非预期的格式: {type(data)}")
-            return data
+            if response.status_code == 401:
+                raise Exception("GitHub API 401：请配置 GITHUB_TOKEN 或确认仓库权限")
+            raise Exception(f"GitHub API {response.status_code}: {url}")
         except Exception as e:
             print(f"[API] GitHub API 调用失败: {url}, 错误: {e}")
             raise
@@ -131,23 +148,38 @@ async def gitea_api(url: str, token: str = None) -> Any:
     """调用Gitea API"""
     headers = {"Content-Type": "application/json"}
     t = token or settings.GITEA_TOKEN
-    if t:
-        headers["Authorization"] = f"token {t}"
     
     async with httpx.AsyncClient(timeout=30) as client:
+        # First try with token if available
+        if t:
+            headers["Authorization"] = f"token {t}"
+            try:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    return response.json()
+                if response.status_code != 401:
+                    if response.status_code == 403:
+                        raise Exception("Gitea API 403：请确认仓库权限/频率限制")
+                    raise Exception(f"Gitea API {response.status_code}: {url}")
+                # If 401, fall through to retry without token
+                print(f"[API] Gitea API 401 (Unauthorized) with token, retrying without token for: {url}")
+            except Exception as e:
+                if "Gitea API 401" not in str(e) and "401" not in str(e):
+                    raise
+        
+        # Try without token
+        if "Authorization" in headers:
+            del headers["Authorization"]
+            
         try:
             response = await client.get(url, headers=headers)
+            if response.status_code == 200:
+                return response.json()
             if response.status_code == 401:
                 raise Exception("Gitea API 401：请配置 GITEA_TOKEN 或确认仓库权限")
             if response.status_code == 403:
                 raise Exception("Gitea API 403：请确认仓库权限/频率限制")
-            if response.status_code != 200:
-                raise Exception(f"Gitea API {response.status_code}: {url}")
-            
-            data = response.json()
-            if not isinstance(data, (list, dict)):
-                 print(f"[API] 警告: Gitea API 返回了非预期的格式: {type(data)}")
-            return data
+            raise Exception(f"Gitea API {response.status_code}: {url}")
         except Exception as e:
             print(f"[API] Gitea API 调用失败: {url}, 错误: {e}")
             raise
@@ -157,23 +189,38 @@ async def gitlab_api(url: str, token: str = None) -> Any:
     """调用GitLab API"""
     headers = {"Content-Type": "application/json"}
     t = token or settings.GITLAB_TOKEN
-    if t:
-        headers["PRIVATE-TOKEN"] = t
     
     async with httpx.AsyncClient(timeout=30) as client:
+        # First try with token if available
+        if t:
+            headers["PRIVATE-TOKEN"] = t
+            try:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    return response.json()
+                if response.status_code != 401:
+                    if response.status_code == 403:
+                        raise Exception("GitLab API 403：请确认仓库权限/频率限制")
+                    raise Exception(f"GitLab API {response.status_code}: {url}")
+                # If 401, fall through to retry without token
+                print(f"[API] GitLab API 401 (Unauthorized) with token, retrying without token for: {url}")
+            except Exception as e:
+                if "GitLab API 401" not in str(e) and "401" not in str(e):
+                    raise
+        
+        # Try without token
+        if "PRIVATE-TOKEN" in headers:
+            del headers["PRIVATE-TOKEN"]
+            
         try:
             response = await client.get(url, headers=headers)
+            if response.status_code == 200:
+                return response.json()
             if response.status_code == 401:
                 raise Exception("GitLab API 401：请配置 GITLAB_TOKEN 或确认仓库权限")
             if response.status_code == 403:
                 raise Exception("GitLab API 403：请确认仓库权限/频率限制")
-            if response.status_code != 200:
-                raise Exception(f"GitLab API {response.status_code}: {url}")
-            
-            data = response.json()
-            if not isinstance(data, (list, dict)):
-                print(f"[API] 警告: GitLab API 返回了非预期的格式: {type(data)}")
-            return data
+            raise Exception(f"GitLab API {response.status_code}: {url}")
         except Exception as e:
             print(f"[API] GitLab API 调用失败: {url}, 错误: {e}")
             raise
@@ -186,6 +233,14 @@ async def fetch_file_content(url: str, headers: Dict[str, str] = None) -> Option
             response = await client.get(url, headers=headers or {})
             if response.status_code == 200:
                 return response.text
+            
+            # 如果带 Token 请求失败（401/403），尝试不带 Token 请求（针对公开仓库）
+            if response.status_code in (401, 403) and headers:
+                print(f"[API] 获取文件内容返回 {response.status_code}，尝试不带 Token 重试: {url}")
+                response = await client.get(url)
+                if response.status_code == 200:
+                    return response.text
+                
         except Exception as e:
             print(f"获取文件内容失败: {url}, 错误: {e}")
     return None
@@ -313,9 +368,9 @@ async def get_gitea_files(repo_url: str, branch: str, token: str = None, exclude
     base_url = repo_info['base_url']
     owner, repo = repo_info['owner'], repo_info['repo']
     
-    # Gitea tree API: GET /repos/{owner}/{repo}/git/trees/{sha}?recursive=1
+    # Gitea tree API: GET /repos/{owner}/{repo}/git/trees/{sha}?recursive=true
     # 可以直接使用分支名作为sha
-    tree_url = f"{base_url}/repos/{owner}/{repo}/git/trees/{quote(branch)}?recursive=1"
+    tree_url = f"{base_url}/repos/{quote(owner)}/{quote(repo)}/git/trees/{quote(branch)}?recursive=true"
     tree_data = await gitea_api(tree_url, token)
     
     files = []
@@ -392,6 +447,7 @@ async def scan_repo_task(task_id: str, db_session_factory, user_config: dict = N
             
 
             # 获取SSH私钥（如果配置了）
+            user_other_config = user_config.get('otherConfig', {}) if user_config else {}
             ssh_private_key = None
             if 'sshPrivateKey' in user_other_config:
                 from app.core.encryption import decrypt_sensitive_data
@@ -499,6 +555,7 @@ async def scan_repo_task(task_id: str, db_session_factory, user_config: dict = N
             skipped_files = 0  # 跳过的文件（空文件、太大等）
             consecutive_failures = 0
             MAX_CONSECUTIVE_FAILURES = 5
+            last_error = None
 
             for file_info in files:
                 # 检查是否取消
@@ -521,6 +578,8 @@ async def scan_repo_task(task_id: str, db_session_factory, user_config: dict = N
                     if is_ssh_url:
                         # SSH方式已经包含了文件内容
                         content = file_info.get('content', '')
+                        if not content:
+                             print(f"⚠️ SSH文件内容为空: {file_info['path']}")
                         print(f"📥 正在处理SSH文件: {file_info['path']}")
                     else:
                         headers = {}
@@ -668,8 +727,12 @@ async def scan_repo_task(task_id: str, db_session_factory, user_config: dict = N
                 task.total_lines = total_lines
                 task.issues_count = 0
                 task.quality_score = 0
+                
+                # 尝试从最后一个错误中获取更详细的系统提示
+                error_msg = f"{failed_files} 个文件分析失败，请检查 LLM API 配置。最近一个错误: {str(last_error) if 'last_error' in locals() else '未知错误'}"
+                task.error_message = error_msg
                 await db.commit()
-                print(f"❌ 任务 {task_id} 失败: {failed_files} 个文件分析失败，请检查 LLM API 配置")
+                print(f"❌ 任务 {task_id} 失败: {error_msg}")
             else:
                 task.status = "completed"
                 task.completed_at = datetime.now(timezone.utc)
