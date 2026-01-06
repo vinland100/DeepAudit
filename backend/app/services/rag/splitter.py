@@ -178,6 +178,8 @@ class TreeSitterParser:
         ".bash": "bash",
         ".zsh": "bash",
         ".sql": "sql",
+        ".md": "markdown",
+        ".markdown": "markdown",
     }
     
     # 各语言的函数/类节点类型
@@ -536,6 +538,19 @@ class CodeSplitter:
             # 如果还是没有，使用基于行的分块
             if not chunks:
                 chunks = self._split_by_lines(content, file_path, language)
+            
+            # 🔥 最后一道防线：如果文件不为空但没有产生任何块（比如文件内容太短被过滤了）
+            # 我们强制创建一个文件级别的块，以确保该文件在索引中“挂名”，避免增量索引一直提示它是“新增”
+            if not chunks and content.strip():
+                chunks.append(CodeChunk(
+                    id="",
+                    content=content,
+                    file_path=file_path,
+                    language=language,
+                    chunk_type=ChunkType.FILE,
+                    line_start=1,
+                    line_end=len(content.split('\n')),
+                ))
             
             # 后处理：提取安全指标
             for chunk in chunks:

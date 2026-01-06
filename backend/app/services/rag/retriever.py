@@ -104,8 +104,8 @@ class CodeRetriever:
         """
         self.collection_name = collection_name
         self._provided_embedding_service = embedding_service  # 用户提供的 embedding 服务
-        self.embedding_service = embedding_service  # 实际使用的 embedding 服务
-        self._api_key = api_key
+        self.embedding_service = embedding_service or EmbeddingService() # 实际使用的 embedding 服务
+        self._api_key = api_key or (getattr(self.embedding_service, 'api_key', None) if self.embedding_service else None)
 
         # 创建向量存储
         if vector_store:

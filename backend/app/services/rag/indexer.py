@@ -760,8 +760,8 @@ class CodeIndexer:
 
         # 从 embedding_service 获取配置
         self.embedding_config = {
-            "provider": getattr(self.embedding_service, 'provider', 'openai'),
-            "model": getattr(self.embedding_service, 'model', 'text-embedding-3-small'),
+            "provider": getattr(self.embedding_service, 'provider', None) or 'openai',
+            "model": getattr(self.embedding_service, 'model', None) or 'text-embedding-3-small',
             "dimension": getattr(self.embedding_service, 'dimension', 1536),
             "base_url": getattr(self.embedding_service, 'base_url', None),
         }
