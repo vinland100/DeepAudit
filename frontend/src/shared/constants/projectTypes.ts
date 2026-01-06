@@ -24,9 +24,9 @@ export const PROJECT_SOURCE_TYPES: Array<{
 
 // 仓库平台显示名称
 export const REPOSITORY_PLATFORM_LABELS: Record<RepositoryPlatform, string> = {
+  gitea: 'Gitea',
   github: 'GitHub',
   gitlab: 'GitLab',
-  gitea: 'Gitea',
   other: '其他',
 };
 

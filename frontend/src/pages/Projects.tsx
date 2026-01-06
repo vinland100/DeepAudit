@@ -68,7 +68,7 @@ export default function Projects() {
     description: "",
     source_type: "repository",
     repository_url: "",
-    repository_type: "github",
+    repository_type: "gitea",
     default_branch: "main",
     programming_languages: []
   });
@@ -77,7 +77,7 @@ export default function Projects() {
     description: "",
     source_type: "repository",
     repository_url: "",
-    repository_type: "github",
+    repository_type: "gitea",
     default_branch: "main",
     programming_languages: []
   });
@@ -172,7 +172,7 @@ export default function Projects() {
       description: "",
       source_type: "repository",
       repository_url: "",
-      repository_type: "github",
+      repository_type: "gitea",
       default_branch: "main",
       programming_languages: []
     });

@@ -18,6 +18,7 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from enum import Enum
 import json
+import fnmatch
 
 from .splitter import CodeSplitter, CodeChunk
 from .embeddings import EmbeddingService
@@ -556,10 +557,14 @@ class ChromaVectorStore(VectorStore):
             current_metadata["updated_at"] = time.time()
 
             # Chroma 不支持直接更新元数据，需要通过修改 collection
+            # 🔥 FIX: 不能在 modify 中传递 "hnsw:space"，因为 Chroma 不支持在创建后修改距离函数
+            # 即使值相同也可能导致某些版本报错
+            modified_metadata = {k: v for k, v in current_metadata.items() if k != "hnsw:space"}
+
             # 这里我们使用 modify 方法
             await asyncio.to_thread(
                 self._collection.modify,
-                metadata=current_metadata,
+                metadata=modified_metadata,
             )
         except Exception as e:
             logger.warning(f"更新 collection 元数据失败: {e}")
@@ -986,6 +991,12 @@ class CodeIndexer:
         progress.total_files = len(files)
 
         logger.info(f"📁 发现 {len(files)} 个文件待索引")
+        
+        # 🔥 详细打印所有待索引的文件名，方便调试 (满足用户需求)
+        if files:
+            relative_files = [os.path.relpath(f, directory) for f in files]
+            logger.info(f"📄 待索引文件列表: {', '.join(sorted(relative_files))}")
+
         yield progress
 
         semaphore = asyncio.Semaphore(10)  # 降低并行度以平衡 CPU 和内存
@@ -1087,7 +1098,7 @@ class CodeIndexer:
         files_to_delete = indexed_files - current_file_set
         files_to_check = current_file_set & indexed_files
 
-        logger.debug(f"📊 差异分析: 交集={len(files_to_check)}, 新增候选={len(files_to_add)}, 删除候选={len(files_to_delete)}")
+        logger.debug(f"� 差异分析: 交集={len(files_to_check)}, 新增候选={len(files_to_add)}, 删除候选={len(files_to_delete)}")
 
         # 检查需要更新的文件（hash 变化）
         files_to_update: Set[str] = set()
@@ -1104,10 +1115,37 @@ class CodeIndexer:
             except Exception:
                 files_to_update.add(relative_path)
 
+        # 只有当指定了 include_patterns 时，才需要特殊处理 files_to_delete
+        # 如果当前扫描是限定范围的（例如只审计某几个文件），不应该删除范围外的已有索引
+        if include_patterns:
+            actual_files_to_delete = set()
+            for rel_path in files_to_delete:
+                filename = os.path.basename(rel_path)
+                is_in_scope = False
+                for pattern in include_patterns:
+                    if fnmatch.fnmatch(rel_path, pattern) or fnmatch.fnmatch(filename, pattern):
+                        is_in_scope = True
+                        break
+                if is_in_scope:
+                    actual_files_to_delete.add(rel_path)
+            
+            if len(actual_files_to_delete) < len(files_to_delete):
+                logger.debug(f"Scope limited: reducing files_to_delete from {len(files_to_delete)} to {len(actual_files_to_delete)}")
+            files_to_delete = actual_files_to_delete
+
         total_operations = len(files_to_add) + len(files_to_delete) + len(files_to_update)
         progress.total_files = total_operations
 
-        logger.info(f"📊 增量更新: 新增 {len(files_to_add)}, 删除 {len(files_to_delete)}, 更新 {len(files_to_update)}")
+        logger.info(f"📊 增量更新摘要: 新增 {len(files_to_add)}, 删除 {len(files_to_delete)}, 更新 {len(files_to_update)}")
+        
+        # 🔥 详细打印新增、更新和删除的文件名，方便调试 (满足用户需求)
+        if files_to_add:
+            logger.info(f"🆕 新增文件 ({len(files_to_add)}): {', '.join(sorted(list(files_to_add)))}")
+        if files_to_update:
+            logger.info(f"🔄 更新文件 ({len(files_to_update)}): {', '.join(sorted(list(files_to_update)))}")
+        if files_to_delete:
+            logger.info(f"🗑️ 删除文件 ({len(files_to_delete)}): {', '.join(sorted(list(files_to_delete)))}")
+
         yield progress
 
         # 删除已移除的文件
