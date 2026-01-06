@@ -432,16 +432,16 @@ class CIService:
             logger.info(f"🔄 Updating repo at {target_dir}")
             try:
                 # git fetch --all
-                subprocess.run(["git", "fetch", "--all"], cwd=target_dir, check=True)
+                subprocess.run(["git", "fetch", "-q", "--all"], cwd=target_dir, check=True)
                 
                 if pr_number:
                     # Fetch PR ref specifically from base repo: refs/pull/ID/head
                     logger.info(f"📥 Fetching PR ref: refs/pull/{pr_number}/head")
-                    subprocess.run(["git", "fetch", "origin", f"refs/pull/{pr_number}/head"], cwd=target_dir, check=True)
-                    subprocess.run(["git", "checkout", "FETCH_HEAD"], cwd=target_dir, check=True)
+                    subprocess.run(["git", "fetch", "-q", "origin", f"refs/pull/{pr_number}/head"], cwd=target_dir, check=True)
+                    subprocess.run(["git", "checkout", "-q", "FETCH_HEAD"], cwd=target_dir, check=True)
                 else:
                     # git checkout branch
-                    subprocess.run(["git", "checkout", branch], cwd=target_dir, check=True)
+                    subprocess.run(["git", "checkout", "-q", branch], cwd=target_dir, check=True)
                     # git reset --hard origin/branch
                     subprocess.run(["git", "reset", "--hard", f"origin/{branch}"], cwd=target_dir, check=True)
             except Exception as e:
@@ -457,10 +457,10 @@ class CIService:
                 
                 if pr_number:
                     logger.info(f"📥 Fetching PR ref: refs/pull/{pr_number}/head")
-                    subprocess.run(["git", "fetch", "origin", f"refs/pull/{pr_number}/head"], cwd=target_dir, check=True)
-                    subprocess.run(["git", "checkout", "FETCH_HEAD"], cwd=target_dir, check=True)
+                    subprocess.run(["git", "fetch", "-q", "origin", f"refs/pull/{pr_number}/head"], cwd=target_dir, check=True)
+                    subprocess.run(["git", "checkout", "-q", "FETCH_HEAD"], cwd=target_dir, check=True)
                 else:
-                    subprocess.run(["git", "checkout", branch], cwd=target_dir, check=True)
+                    subprocess.run(["git", "checkout", "-q", branch], cwd=target_dir, check=True)
             except Exception as e:
                 logger.error(f"Git clone failed: {e}")
                 raise e
