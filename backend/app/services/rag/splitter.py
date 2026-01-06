@@ -155,11 +155,29 @@ class TreeSitterParser:
         ".c": "c",
         ".h": "c",
         ".hpp": "cpp",
+        ".hxx": "cpp",
         ".cs": "csharp",
         ".php": "php",
         ".rb": "ruby",
         ".kt": "kotlin",
+        ".ktm": "kotlin",
+        ".kts": "kotlin",
         ".swift": "swift",
+        ".dart": "dart",
+        ".scala": "scala",
+        ".sc": "scala",
+        ".groovy": "groovy",
+        ".lua": "lua",
+        ".hs": "haskell",
+        ".clj": "clojure",
+        ".ex": "elixir",
+        ".erl": "erlang",
+        ".m": "objective-c",
+        ".mm": "objective-c",
+        ".sh": "bash",
+        ".bash": "bash",
+        ".zsh": "bash",
+        ".sql": "sql",
     }
     
     # 各语言的函数/类节点类型
@@ -182,10 +200,20 @@ class TreeSitterParser:
             "import": ["import_statement"],
         },
         "java": {
-            "class": ["class_declaration"],
+            "class": ["class_declaration", "enum_declaration", "record_declaration"],
             "method": ["method_declaration", "constructor_declaration"],
-            "interface": ["interface_declaration"],
+            "interface": ["interface_declaration", "annotation_type_declaration"],
             "import": ["import_declaration"],
+        },
+        "csharp": {
+            "class": ["class_declaration", "record_declaration", "struct_declaration", "enum_declaration"],
+            "method": ["method_declaration", "constructor_declaration", "destructor_declaration"],
+            "interface": ["interface_declaration"],
+            "import": ["using_directive"],
+        },
+        "cpp": {
+            "class": ["class_specifier", "struct_specifier", "enum_specifier"],
+            "function": ["function_definition"],
         },
         "go": {
             "struct": ["type_declaration"],
@@ -193,13 +221,34 @@ class TreeSitterParser:
             "interface": ["type_declaration"],
             "import": ["import_declaration"],
         },
+        "rust": {
+            "struct": ["struct_item", "union_item"],
+            "enum": ["enum_item"],
+            "function": ["function_item"],
+            "class": ["impl_item", "trait_item"],
+        },
+        "php": {
+            "class": ["class_declaration"],
+            "function": ["function_definition", "method_definition"],
+            "interface": ["interface_declaration"],
+        },
+        "ruby": {
+            "class": ["class", "module"],
+            "function": ["method"],
+        },
+        "swift": {
+            "class": ["class_declaration", "struct_declaration", "enum_declaration"],
+            "function": ["function_declaration"],
+            "interface": ["protocol_declaration"],
+        },
     }
     
     # tree-sitter-languages 支持的语言列表
     SUPPORTED_LANGUAGES = {
         "python", "javascript", "typescript", "tsx", "java", "go", "rust",
         "c", "cpp", "csharp", "php", "ruby", "kotlin", "swift", "bash",
-        "json", "yaml", "html", "css", "sql", "markdown",
+        "json", "yaml", "html", "css", "sql", "markdown", "dart", "scala",
+        "lua", "haskell", "clojure", "elixir", "erlang", "objective-c"
     }
 
     def __init__(self):
@@ -383,6 +432,26 @@ class CodeSplitter:
             (r"\$_GET\[", "get_input"),
             (r"\$_POST\[", "post_input"),
             (r"\$_REQUEST\[", "request_input"),
+        ],
+        "csharp": [
+            (r"Process\.Start\s*\(", "process_start"),
+            (r"SqlCommand\s*\(.*\+", "sql_concat"),
+            (r"Deserialize\s*\(", "deserialization"),
+            (r"AllowHtml\s*=", "unsafe_html"),
+            (r"password\s*=", "password_assign"),
+        ],
+        "cpp": [
+            (r"\bsystem\s*\(", "system_call"),
+            (r"\bpopen\s*\(", "popen"),
+            (r"\bstrcpy\s*\(", "unsafe_string_copy"),
+            (r"\bsprintf\s*\(", "unsafe_string_format"),
+            (r"\bmalloc\s*\(", "memory_allocation"),
+        ],
+        "ruby": [
+            (r"\beval\s*\(", "eval"),
+            (r"`.*`", "shell_execution"),
+            (r"system\s*\(", "system_call"),
+            (r"send\s*\(", "dynamic_method_call"),
         ],
     }
     
@@ -584,6 +653,25 @@ class CodeSplitter:
                 (r"^(\s*)(?:abstract\s+)?class\s+(\w+)", ChunkType.CLASS),
                 (r"^(\s*)interface\s+(\w+)", ChunkType.INTERFACE),
                 (r"^(\s*)(?:public|private|protected)?\s*(?:static\s+)?function\s+(\w+)", ChunkType.FUNCTION),
+            ],
+            "csharp": [
+                (r"^(\s*)(?:public|private|protected|internal)?\s*(?:static\s+)?(?:partial\s+)?(?:class|record|struct|enum)\s+(\w+)", ChunkType.CLASS),
+                (r"^(\s*)(?:public|private|protected|internal)?\s*interface\s+(\w+)", ChunkType.INTERFACE),
+                (r"^(\s*)(?:public|private|protected|internal)?\s*(?:async\s+)?(?:static\s+)?[\w<>\[\],\s]+\s+(\w+)\s*\([^)]*\)", ChunkType.METHOD),
+            ],
+            "cpp": [
+                (r"^(\s*)(?:class|struct)\s+(\w+)", ChunkType.CLASS),
+                (r"^(\s*)[\w<>:]+\s+(\w+)\s*\([^)]*\)\s*\{", ChunkType.FUNCTION),
+            ],
+            "ruby": [
+                (r"^(\s*)(?:class|module)\s+(\w+)", ChunkType.CLASS),
+                (r"^(\s*)def\s+(\w+)", ChunkType.FUNCTION),
+            ],
+            "rust": [
+                (r"^(\s*)(?:pub\s+)?(?:struct|enum|union)\s+(\w+)", ChunkType.CLASS),
+                (r"^(\s*)(?:pub\s+)?(?:async\s+)?fn\s+(\w+)", ChunkType.FUNCTION),
+                (r"^(\s*)(?:pub\s+)?impl", ChunkType.CLASS),
+                (r"^(\s*)(?:pub\s+)?trait\s+(\w+)", ChunkType.INTERFACE),
             ],
         }
         
@@ -788,8 +876,22 @@ class CodeSplitter:
             "java": [
                 r"^import\s+([\w.]+);",
             ],
+            "csharp": [
+                r"^using\s+([\w.]+);",
+            ],
             "go": [
                 r"['\"]([^'\"]+)['\"]",
+            ],
+            "cpp": [
+                r'^#include\s+["<]([^">]+)[">]',
+            ],
+            "php": [
+                r"^use\s+([\w\\]+);",
+                r"require(?:_once)?\s*\(['\"]([^'\"]+)['\"]\)",
+            ],
+            "ruby": [
+                r"require\s+['\"]([^'\"]+)['\"]",
+                r"require_relative\s+['\"]([^'\"]+)['\"]",
             ],
         }
         
@@ -835,10 +937,21 @@ class CodeSplitter:
                 r"class\s+(\w+)",
                 r"(\w+)\s*=\s*",
             ],
-            "javascript": [
-                r"function\s+(\w+)",
-                r"(?:const|let|var)\s+(\w+)",
-                r"class\s+(\w+)",
+            "java": [
+                r"(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?(?:class|interface|enum|record)\s+(\w+)",
+                r"(?:public|private|protected)?\s*(?:static\s+)?[\w<>\[\],\s]+\s+(\w+)\s*\([^)]*\)",
+            ],
+            "csharp": [
+                r"(?:class|record|struct|enum|interface)\s+(\w+)",
+                r"[\w<>\[\],\s]+\s+(\w+)\s*\([^)]*\)",
+            ],
+            "cpp": [
+                r"(?:class|struct)\s+(\w+)",
+                r"(?:[\w<>:]+)\s+(\w+)\s*\([^)]*\)\s*\{",
+            ],
+            "rust": [
+                r"(?:struct|enum|union|trait)\s+(\w+)",
+                r"fn\s+(\w+)",
             ],
         }
         

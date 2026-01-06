@@ -37,18 +37,32 @@ def get_analysis_config(user_config: Optional[Dict[str, Any]] = None) -> Dict[st
 
 # 支持的文本文件扩展名
 TEXT_EXTENSIONS = [
-    ".js", ".ts", ".tsx", ".jsx", ".py", ".java", ".go", ".rs", 
-    ".cpp", ".c", ".h", ".cc", ".hh", ".cs", ".php", ".rb", 
-    ".kt", ".swift", ".sql", ".sh", ".json", ".yml", ".yaml"
+    ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs",
+    ".cpp", ".c", ".h", ".cc", ".hh", ".hpp", ".hxx", ".cs", ".php", ".rb",
+    ".kt", ".swift", ".dart", ".scala", ".sc", ".groovy", ".ktm", ".kts",
+    ".cshtml", ".vb", ".fs", ".fsi", ".fsx", ".sln", ".csproj", ".vbproj",
+    ".fsproj", ".config", ".asax", ".master", ".ascx", ".asmx", ".svc",
+    ".json", ".yml", ".yaml", ".toml", ".xml", ".properties", ".conf", ".ini",
+    ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".cmd", ".sql", ".pl", ".pm", ".t",
+    ".html", ".css", ".vue", ".svelte", ".md", ".proto", ".graphql", ".gql",
+    ".prisma", ".sol", ".dockerfile", ".tf", ".hcl", ".tfvars",
+    ".lua", ".hs", ".lhs", ".clj", ".cljs", ".cljc", ".edn", ".ex", ".exs",
+    ".erl", ".hrl", ".m", ".mm", ".r", ".rmd"
 ]
 
 # 排除的目录和文件模式
 EXCLUDE_PATTERNS = [
-    "node_modules/", "vendor/", "dist/", "build/", ".git/",
-    "__pycache__/", ".pytest_cache/", "coverage/", ".nyc_output/",
-    ".vscode/", ".idea/", ".vs/", "target/", "out/",
-    "__MACOSX/", ".DS_Store", "package-lock.json", "yarn.lock",
-    "pnpm-lock.yaml", ".min.js", ".min.css", ".map"
+    # 常用目录
+    "node_modules/", "vendor/", "dist/", "build/", "target/", "out/", "bin/", "obj/",
+    ".git/", ".svn/", ".hg/", ".vscode/", ".idea/", ".vs/", ".settings/",
+    ".gradle/", ".m2/", "venv/", "env/", ".env/", "__pycache__/",
+    ".pytest_cache/", "coverage/", ".nyc_output/", "bower_components/",
+    "packages/", "pkg/", "Pods/", "TestResults/", "_ReSharper.*",
+    # 常见锁文件与二进制
+    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock",
+    "poetry.lock", "composer.lock", "Gemfile.lock", "gradle.lockfile",
+    ".min.js", ".min.css", ".map", ".DS_Store", "*.pdb", "*.dll", "*.exe",
+    "*.o", "*.obj", "*.a", "*.lib", "*.jar", "*.war", "*.class"
 ]
 
 
@@ -67,13 +81,26 @@ def get_language_from_path(path: str) -> str:
     """从文件路径获取语言类型"""
     ext = path.split('.')[-1].lower() if '.' in path else ''
     language_map = {
+        'py': 'python',
         'js': 'javascript', 'jsx': 'javascript',
         'ts': 'typescript', 'tsx': 'typescript',
-        'py': 'python', 'java': 'java', 'go': 'go',
-        'rs': 'rust', 'cpp': 'cpp', 'c': 'cpp',
-        'cc': 'cpp', 'h': 'cpp', 'hh': 'cpp',
+        'java': 'java', 'go': 'go', 'rs': 'rust',
+        'cpp': 'cpp', 'c': 'c', 'cc': 'cpp', 'h': 'c', 'hh': 'cpp',
+        'hpp': 'cpp', 'hxx': 'cpp',
         'cs': 'csharp', 'php': 'php', 'rb': 'ruby',
-        'kt': 'kotlin', 'swift': 'swift'
+        'kt': 'kotlin', 'ktm': 'kotlin', 'kts': 'kotlin',
+        'swift': 'swift', 'dart': 'dart',
+        'scala': 'scala', 'sc': 'scala',
+        'groovy': 'groovy', 'gsh': 'groovy', 'gvy': 'groovy', 'gy': 'groovy',
+        'sql': 'sql', 'sh': 'bash', 'bash': 'bash', 'zsh': 'bash',
+        'pl': 'perl', 'pm': 'perl', 't': 'perl',
+        'lua': 'lua', 'hs': 'haskell', 'lhs': 'haskell',
+        'clj': 'clojure', 'cljs': 'clojure', 'cljc': 'clojure', 'edn': 'clojure',
+        'ex': 'elixir', 'exs': 'elixir', 'erl': 'erlang', 'hrl': 'erlang',
+        'm': 'objective-c', 'mm': 'objective-c',
+        'r': 'r', 'rmd': 'r',
+        'vb': 'visual-basic', 'fs': 'fsharp', 'fsi': 'fsharp', 'fsx': 'fsharp',
+        'tf': 'hcl', 'hcl': 'hcl', 'dockerfile': 'dockerfile'
     }
     return language_map.get(ext, 'text')
 

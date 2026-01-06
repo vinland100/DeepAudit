@@ -30,24 +30,63 @@ INDEX_VERSION = "2.0"
 
 # 支持的文本文件扩展名
 TEXT_EXTENSIONS = {
+    # 核心语言
     ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs",
-    ".cpp", ".c", ".h", ".cc", ".hh", ".cs", ".php", ".rb",
-    ".kt", ".swift", ".sql", ".sh", ".json", ".yml", ".yaml",
-    ".xml", ".html", ".css", ".vue", ".svelte", ".md",
+    ".cpp", ".c", ".h", ".cc", ".hh", ".hpp", ".hxx", ".cs", ".php", ".rb",
+    ".kt", ".swift", ".dart", ".scala", ".sc", ".groovy", ".ktm", ".kts",
+    # .NET
+    ".cshtml", ".vb", ".fs", ".fsi", ".fsx", ".sln", ".csproj", ".vbproj",
+    ".fsproj", ".config", ".asax", ".master", ".ascx", ".asmx", ".svc",
+    # 数据与配置
+    ".json", ".yml", ".yaml", ".toml", ".xml", ".properties", ".conf", ".ini",
+    # 脚本与命令
+    ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".cmd", ".sql", ".pl", ".pm", ".t",
+    # Web
+    ".html", ".css", ".vue", ".svelte", ".md", ".proto", ".graphql", ".gql",
+    ".prisma", ".sol", ".dockerfile", ".tf", ".hcl", ".tfvars",
+    # 其他
+    ".lua", ".hs", ".lhs", ".clj", ".cljs", ".cljc", ".edn", ".ex", ".exs",
+    ".erl", ".hrl", ".m", ".mm", ".r", ".rmd", ".properties"
 }
 
 # 排除的目录
 EXCLUDE_DIRS = {
-    "node_modules", "vendor", "dist", "build", ".git",
-    "__pycache__", ".pytest_cache", "coverage", ".nyc_output",
-    ".vscode", ".idea", ".vs", "target", "out", "bin", "obj",
-    "__MACOSX", ".next", ".nuxt", "venv", "env", ".env",
+    # 构建与依赖
+    "node_modules", "vendor", "dist", "build", "target", "out", "bin", "obj",
+    "bower_components", "packages", "pkg", "Pods", ".gradle", ".m2",
+    "vendor/bundle", ".bundle", "jspm_packages", "typings",
+    # 虚拟环境
+    "venv", "env", ".env", "virtualenv", ".venv",
+    # IDE 与元数据
+    ".git", ".svn", ".hg", ".vscode", ".idea", ".vs", "TestResults",
+    "_ReSharper.*", ".settings", ".project", ".classpath", ".metadata",
+    # 缓存与日志
+    "__pycache__", ".pytest_cache", "coverage", "htmlcov", ".nyc_output",
+    ".cache", ".next", ".nuxt", ".dart_tool", "htmlcov", "logs", "ipch",
+    # 云与基础设施
+    ".aws-sam", ".serverless", ".terraform", ".terraform.d", "_site",
+    # 其他
+    "__MACOSX", "extern", "externals", "third-party", "3rdparty"
 }
 
 # 排除的文件
 EXCLUDE_FILES = {
-    ".DS_Store", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
-    "Cargo.lock", "poetry.lock", "composer.lock", "Gemfile.lock",
+    # 锁文件 (通常不索引，因为内容太长且无语义)
+    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock",
+    "poetry.lock", "composer.lock", "Gemfile.lock", "gradle.lockfile",
+    "mix.lock", "pnpm-workspace.yaml", "shrinkwrap.yaml",
+    # 静态资源与二进制
+    "*.min.js", "*.min.css", "jquery.js", "jquery.min.js", "*.map",
+    "*.pyc", "*.pyo", "*.pyd", "*.so", "*.dll", "*.exe", "*.o", "*.obj",
+    "*.a", "*.lib", "*.jar", "*.war", "*.ear", "*.class",
+    "*.svg", "*.ico", "*.woff*", "*.png", "*.jpg", "*.jpeg", "*.gif",
+    # 系统与秘密
+    ".DS_Store", "thumbs.db", "desktop.ini", "*.pem", "*.crt", "*.key",
+    # 临时与日志
+    "*.log", "*.bak", "*.swp", "*.tmp", "tags",
+    # IDRE 与特定配置
+    "*.suo", "*.user", "*.sln.docstates", "*.vshost.*", "*.pdb",
+    ".ruby-version", ".nvmrc"
 }
 
 
@@ -949,7 +988,7 @@ class CodeIndexer:
         logger.info(f"📁 发现 {len(files)} 个文件待索引")
         yield progress
 
-        semaphore = asyncio.Semaphore(20)  # 控制文件处理并发
+        semaphore = asyncio.Semaphore(10)  # 降低并行度以平衡 CPU 和内存
         file_hashes: Dict[str, str] = {}
 
         async def process_file(file_path: str):
@@ -1083,7 +1122,7 @@ class CodeIndexer:
                 progress_callback(progress)
             yield progress
 
-        semaphore = asyncio.Semaphore(20)
+        semaphore = asyncio.Semaphore(10)
         file_hashes: Dict[str, str] = dict(indexed_file_hashes)
 
         async def process_incremental_file(relative_path: str):
@@ -1363,11 +1402,35 @@ class CodeIndexer:
                 if ext not in TEXT_EXTENSIONS:
                     continue
 
-                # 检查排除文件
-                if filename in EXCLUDE_FILES:
+                # 检查排除文件 (支持通配符)
+                should_skip_file = False
+                for pattern in EXCLUDE_FILES:
+                    if fnmatch.fnmatch(filename, pattern):
+                        should_skip_file = True
+                        break
+                if should_skip_file:
                     continue
 
+                # 排除疑似压缩过的文件 (通过行长度和内容分析)
                 file_path = os.path.join(root, filename)
+                try:
+                    if os.path.getsize(file_path) > 50000: # > 50KB
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            # 检查前 5 行，防止第一行是版权注释的情况
+                            is_minified = False
+                            for _ in range(5):
+                                line = f.readline()
+                                if not line: break
+                                if len(line) > 1000:
+                                    is_minified = True
+                                    break
+                            
+                            if is_minified:
+                                logger.info(f"⏩ 跳过疑似压缩或非代码文件: {filename}")
+                                continue
+                except Exception:
+                    pass
+
                 relative_path = os.path.relpath(file_path, directory)
 
                 # 检查排除模式

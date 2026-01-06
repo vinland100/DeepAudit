@@ -553,14 +553,16 @@ class QwenEmbedding(EmbeddingProvider):
         payload = {
             "model": self.model,
             "input": truncated_texts,
-            "encoding_format": "float",
         }
-
         url = f"{self.base_url.rstrip('/')}/embeddings"
 
         try:
-            async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post(url, headers=headers, json=payload)
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    url,
+                    headers=headers,
+                    json=payload,
+                )
                 response.raise_for_status()
                 data = response.json()
 
